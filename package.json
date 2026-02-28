@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm ci && vite build",
+    "build": "vite build",
     "start": "vite preview --port $PORT --host"
   },
   "dependencies": {
