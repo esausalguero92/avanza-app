@@ -4,3 +4,6 @@ install = "npm ci"
 
 [start]
 cmd = "npm start"
+
+[node]
+version = "20"
