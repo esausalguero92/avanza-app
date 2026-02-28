@@ -1,9 +1,0 @@
-[node]
-version = "18"
-
-[build]
-build = "npm ci && vite build"
-install = ""
-
-[start]
-cmd = "npm start"
