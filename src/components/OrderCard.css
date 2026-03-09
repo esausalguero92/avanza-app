@@ -1,0 +1,95 @@
+.order-card {
+  background: #161616;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  transition: border-color 0.2s;
+}
+
+.order-card:hover {
+  border-color: #f59e0b;
+}
+
+.order-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.order-card__number {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #f59e0b;
+}
+
+.order-card__body {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.order-card__client {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #f5f0eb;
+  margin: 0;
+}
+
+.order-card__date {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+.order-card__items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0.5rem 0;
+  border-top: 1px solid #2a2a2a;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.order-card__item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+.order-card__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.order-card__totals {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.order-card__total {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #f5f0eb;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.order-card__credit {
+  font-size: 0.78rem;
+  color: #fbbf24;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.order-card__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}

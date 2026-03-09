@@ -1,0 +1,131 @@
+.client-ac {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.client-ac__input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.client-ac__input {
+  padding-right: 2.2rem;
+}
+
+.client-ac__input--selected {
+  border-color: #22c55e !important;
+}
+
+.client-ac__spinner {
+  position: absolute;
+  right: 0.75rem;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  pointer-events: none;
+}
+
+.client-ac__clear {
+  position: absolute;
+  right: 0.6rem;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color 0.15s;
+}
+.client-ac__clear:hover { color: var(--danger); }
+
+/* Badge cliente existente */
+.client-ac__badge {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: #4ade80;
+  padding: 0.3rem 0.6rem;
+  background: #14532d22;
+  border: 1px solid #14532d;
+  border-radius: 6px;
+}
+
+.client-ac__badge-icon {
+  font-weight: 700;
+}
+
+.client-ac__badge-detail {
+  color: var(--text-muted);
+}
+
+/* Dropdown */
+.client-ac__dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  list-style: none;
+  z-index: 200;
+  overflow: hidden;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.client-ac__option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0.65rem 0.9rem;
+  cursor: pointer;
+  border-bottom: 1px solid #1a1a1a;
+  transition: background 0.1s;
+}
+
+.client-ac__option:last-child { border-bottom: none; }
+.client-ac__option:hover { background: rgba(245, 158, 11, 0.08); }
+
+.client-ac__option-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.client-ac__option-detail {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Mensaje nuevo cliente */
+.client-ac__new {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-card);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.client-ac__new-icon {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.client-ac__new strong {
+  color: var(--accent);
+}

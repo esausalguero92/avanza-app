@@ -1,35 +1,115 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { supabase } from './lib/supabaseClient'
 
-function App() {
-  const [count, setCount] = useState(0)
+import ProtectedRoute from './components/ProtectedRoute'
+import Login from './pages/Login'
+import NuevaOrden from './pages/NuevaOrden'
+import MisOrdenes from './pages/MisOrdenes'
+import DashboardProduccion from './pages/DashboardProduccion'
+import Reportes from './pages/Reportes'
+import Admin from './pages/Admin'
+import Clientes from './pages/Clientes'
+
+export default function App() {
+  const [session, setSession] = useState(undefined)
+  const [profile, setProfile] = useState(null)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session)
+      if (session) fetchProfile(session.user.id)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session)
+      if (session) fetchProfile(session.user.id)
+      else setProfile(null)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  async function fetchProfile(userId) {
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single()
+    setProfile(data)
+  }
+
+  // Cargando sesión
+  if (session === undefined) {
+    return (
+      <div className="loading-screen">
+        <div className="loading-spinner" />
+      </div>
+    )
+  }
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <Routes>
+        <Route path="/login" element={
+          session ? <Navigate to={getRoleRedirect(profile?.role)} /> : <Login />
+        } />
+
+        <Route path="/nueva-orden" element={
+          <ProtectedRoute session={session} profile={profile} allowedRoles={['designer', 'admin', 'owner']}>
+            <NuevaOrden profile={profile} />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/mis-ordenes" element={
+          <ProtectedRoute session={session} profile={profile} allowedRoles={['designer', 'admin', 'owner']}>
+            <MisOrdenes profile={profile} />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/dashboard-produccion" element={
+          <ProtectedRoute session={session} profile={profile} allowedRoles={['operator', 'admin', 'owner']}>
+            <DashboardProduccion profile={profile} />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/reportes" element={
+          <ProtectedRoute session={session} profile={profile} allowedRoles={['admin', 'owner']}>
+            <Reportes profile={profile} />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/clientes" element={
+          <ProtectedRoute session={session} profile={profile} allowedRoles={['designer', 'admin', 'owner']}>
+            <Clientes profile={profile} />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/admin" element={
+          <ProtectedRoute session={session} profile={profile} allowedRoles={['owner']}>
+            <Admin profile={profile} />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/" element={
+          session
+            ? <Navigate to={getRoleRedirect(profile?.role)} />
+            : <Navigate to="/login" />
+        } />
+
+        <Route path="*" element={<Navigate to="/" />} />
+      </Routes>
+    </BrowserRouter>
   )
 }
 
-export default App
+function getRoleRedirect(role) {
+  const redirects = {
+    designer: '/mis-ordenes',
+    operator: '/dashboard-produccion',
+    delivery: '/mis-ordenes',
+    admin: '/reportes',
+    owner: '/admin',
+  }
+  return redirects[role] || '/login'
+}

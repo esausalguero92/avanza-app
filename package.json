@@ -1,27 +1,21 @@
 {
-  "name": "avanza-app",
+  "name": "imprenta-system",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "start": "vite preview --port 8080 --host"
+    "dev":     "vite",
+    "build":   "vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "serve": "^14.2.1"
+    "@supabase/supabase-js": "^2.39.0",
+    "react":                 "^18.2.0",
+    "react-dom":             "^18.2.0",
+    "react-router-dom":      "^6.21.0"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.1",
-    "@types/react": "^18.2.0",
-    "@types/react-dom": "^18.2.0",
-    "@vitejs/plugin-react": "^4.2.0",
-    "eslint": "^9.39.1",
-    "eslint-plugin-react-hooks": "^7.0.0",
-    "eslint-plugin-react-refresh": "^0.4.0",
-    "globals": "^16.5.0",
-    "vite": "^5.0.0"
+    "@vitejs/plugin-react": "^4.2.1",
+    "vite":                 "^5.0.8"
   }
 }
