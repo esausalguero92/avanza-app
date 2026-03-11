@@ -1,0 +1,273 @@
+/* ── LAYOUT PRINCIPAL ────────────────────────────────────────── */
+.cc-layout {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+@media (max-width: 768px) {
+  .cc-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── LISTA DE CLIENTES ───────────────────────────────────────── */
+.cc-clients {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem;
+  position: sticky;
+  top: 1rem;
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+}
+
+.cc-client-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 0.85rem;
+  border-radius: 7px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  margin-bottom: 0.4rem;
+  transition: background 0.15s, border-color 0.15s;
+  gap: 0.5rem;
+}
+
+.cc-client-row:hover {
+  background: var(--bg-input);
+  border-color: var(--border);
+}
+
+.cc-client-row--active {
+  background: #1a1505;
+  border-color: #f59e0b !important;
+}
+
+.cc-client-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.cc-client-name {
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cc-client-meta {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.cc-client-debt {
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #fbbf24;
+  flex-shrink: 0;
+}
+
+/* ── DETALLE ────────────────────────────────────────────────── */
+.cc-detail {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.25rem;
+  min-height: 300px;
+}
+
+.cc-empty-detail {
+  height: 250px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.cc-empty-detail span {
+  font-size: 2rem;
+  opacity: 0.3;
+}
+
+.cc-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+  gap: 1rem;
+}
+
+.cc-detail-name {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.25rem;
+}
+
+.cc-detail-meta {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.cc-total-debt {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 1.6rem;
+  font-weight: 900;
+  color: #fbbf24;
+  line-height: 1;
+}
+
+.cc-section-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  margin-bottom: 0.6rem;
+}
+
+/* ── ÓRDENES CON DEUDA ──────────────────────────────────────── */
+.cc-orders {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cc-order-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 0.75rem 1rem;
+}
+
+.cc-order-info {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex: 1;
+  flex-wrap: wrap;
+}
+
+.cc-order-num {
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--accent);
+}
+
+.cc-order-date {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.cc-order-status {
+  font-size: 0.68rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.cc-order-amounts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.15rem;
+  flex-shrink: 0;
+}
+
+.cc-order-total {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.cc-order-debt {
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #f87171;
+}
+
+/* ── HISTORIAL DE PAGOS ─────────────────────────────────────── */
+.cc-payments {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.cc-payment-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.85rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.cc-payment-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.cc-payment-method {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.cc-payment-notes {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.cc-payment-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.15rem;
+  flex-shrink: 0;
+}
+
+.cc-payment-amount {
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #4ade80;
+}
+
+.cc-payment-date {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+/* ── SECCIÓN PAGO EN NUEVA ORDEN ────────────────────────────── */
+.payment-type-selector {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}

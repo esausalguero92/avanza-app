@@ -10,12 +10,15 @@ const NAV_BY_ROLE = {
   operator: [
     { to: '/dashboard-produccion', label: 'Producción' },
   ],
+  warehouse: [
+    { to: '/bodega', label: 'Bodega' },
+  ],
   delivery: [],
   admin: [
+    { to: '/nueva-orden',          label: 'Nueva Orden' },
     { to: '/mis-ordenes',          label: 'Órdenes' },
     { to: '/clientes',             label: 'Clientes' },
     { to: '/dashboard-produccion', label: 'Producción' },
-    { to: '/reportes',             label: 'Reportes' },
   ],
   owner: [
     { to: '/nueva-orden',          label: 'Nueva Orden' },
@@ -23,6 +26,7 @@ const NAV_BY_ROLE = {
     { to: '/clientes',             label: 'Clientes' },
     { to: '/dashboard-produccion', label: 'Producción' },
     { to: '/reportes',             label: 'Reportes' },
+    { to: '/cuenta-corriente',     label: 'Créditos' },
     { to: '/admin',                label: 'Admin' },
   ],
 }
@@ -36,7 +40,7 @@ export default function Navbar({ profile }) {
 
   return (
     <header className="page__header">
-      <span className="page__logo">/// IMPRENTA</span>
+      <img src="/src/img/logo.png" alt="Avanza" className="page__logo-img" />
       <nav className="nav-links">
         {links.map(link => (
           <NavLink

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import Navbar from '../components/Navbar'
 import OrderCard from '../components/OrderCard'
 
 const PRODUCTION_STATUSES = ['abierta', 'en_proceso', 'lista']
@@ -20,7 +21,7 @@ export default function DashboardProduccion({ profile }) {
   async function fetchOrders() {
     const { data } = await supabase
       .from('orders')
-      .select(`*, order_items(*)`)
+      .select(`*, order_items(*), priority`)
       .in('status', PRODUCTION_STATUSES)
       .order('created_at', { ascending: true })
     setOrders(data || [])
@@ -35,9 +36,6 @@ export default function DashboardProduccion({ profile }) {
     fetchOrders()
   }
 
-  async function handleLogout() {
-    await supabase.auth.signOut()
-  }
 
   const columns = {
     abierta:    orders.filter(o => o.status === 'abierta'),
@@ -47,11 +45,7 @@ export default function DashboardProduccion({ profile }) {
 
   return (
     <div className="page">
-      <header className="page__header">
-        <span className="page__logo">/// IMPRENTA</span>
-        <span className="page__role" style={{marginLeft:'auto', marginRight:'1rem'}}>{profile?.full_name}</span>
-        <button className="btn btn--ghost" onClick={handleLogout}>Salir</button>
-      </header>
+      <Navbar profile={profile} />
 
       <main className="page__content" style={{maxWidth:'100%', padding:'1.5rem'}}>
         <h1 className="page__title">Dashboard de Producción</h1>

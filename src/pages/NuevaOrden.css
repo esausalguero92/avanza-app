@@ -194,3 +194,214 @@
   cursor: default;
   border-color: #14532d44;
 }
+
+/* Selector de prioridad */
+.priority-selector {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.priority-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  transition: all 0.15s;
+}
+
+.priority-option input { display: none; }
+
+.priority-option:hover {
+  border-color: var(--p-color);
+  color: var(--p-color);
+}
+
+.priority-option--active {
+  border-color: var(--p-color);
+  background: color-mix(in srgb, var(--p-color) 12%, transparent);
+  color: var(--p-color);
+}
+
+/* ── TICKET ─────────────────────────────────────────────────────────────── */
+.ticket {
+  background: #fff;
+  color: #111;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 1.5rem;
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+}
+
+.ticket__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.ticket__logo {
+  font-size: 1.2rem;
+  font-weight: 900;
+  color: #f59e0b;
+  letter-spacing: 0.05em;
+}
+
+.ticket__order-num {
+  font-size: 1.6rem;
+  font-weight: 900;
+  color: #111;
+}
+
+.ticket__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.ticket__meta-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.ticket__label {
+  font-weight: 700;
+  min-width: 80px;
+  color: #555;
+}
+
+.ticket__divider {
+  border-top: 1px dashed #bbb;
+  margin: 0.75rem 0;
+}
+
+.ticket__section {
+  margin-bottom: 0.5rem;
+}
+
+.ticket__section-title {
+  font-weight: 900;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #666;
+  margin-bottom: 0.4rem;
+}
+
+.ticket__client-name {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.ticket__client-detail {
+  font-size: 0.8rem;
+  color: #444;
+}
+
+.ticket__items-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.ticket__items-table th {
+  text-align: left;
+  border-bottom: 1px solid #ccc;
+  padding: 0.3rem 0.25rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #555;
+}
+
+.ticket__items-table td {
+  padding: 0.3rem 0.25rem;
+  border-bottom: 1px solid #f0f0f0;
+  vertical-align: top;
+}
+
+.ticket__items-table td:nth-child(2),
+.ticket__items-table td:nth-child(3),
+.ticket__items-table td:nth-child(4) {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.ticket__items-table th:nth-child(2),
+.ticket__items-table th:nth-child(3),
+.ticket__items-table th:nth-child(4) {
+  text-align: right;
+}
+
+.ticket__total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0.25rem 0;
+}
+
+.ticket__total-label {
+  font-weight: 900;
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+}
+
+.ticket__total-amount {
+  font-size: 1.4rem;
+  font-weight: 900;
+  color: #111;
+}
+
+.ticket__notes {
+  font-size: 0.82rem;
+  color: #444;
+  margin: 0;
+}
+
+.ticket__footer {
+  margin-top: 1rem;
+  text-align: center;
+  font-size: 0.72rem;
+  color: #888;
+  border-top: 1px dashed #ccc;
+  padding-top: 0.75rem;
+  letter-spacing: 0.04em;
+}
+
+/* ── ESTILOS DE IMPRESIÓN ────────────────────────────────────────────────── */
+@media print {
+  /* Ocultar todo excepto el ticket */
+  body * { visibility: hidden; }
+  .ticket, .ticket * { visibility: visible; }
+
+  /* Posicionar el ticket en la esquina superior izquierda */
+  .ticket {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 80mm;          /* Ancho de ticket termico estandar */
+    max-width: 80mm;
+    border: none;
+    border-radius: 0;
+    padding: 8mm;
+    font-size: 10pt;
+    color: #000;
+  }
+
+  .ticket__logo  { color: #000; }
+  .ticket__footer { color: #555; }
+
+  /* Quitar colores de prioridad para impresión B&W */
+  .ticket__meta-row span[style] { color: #000 !important; }
+}

@@ -41,7 +41,7 @@ html, body, #root {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1rem 2rem;
+  padding: 0.75rem 2rem;
   border-bottom: 1px solid var(--border);
   background: var(--bg-card);
   position: sticky;
@@ -55,6 +55,14 @@ html, body, #root {
   font-weight: 700;
   color: var(--accent);
   letter-spacing: -0.02em;
+}
+
+.page__logo-img {
+  height: 120px;
+  width: auto;
+  max-width: 220px;
+  object-fit: contain;
+  display: block;
 }
 
 .page__user {

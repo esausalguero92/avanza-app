@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { NavLink } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
+import Navbar from '../components/Navbar'
 
 export default function Reportes({ profile }) {
   const [orders, setOrders]   = useState([])
@@ -31,9 +31,6 @@ export default function Reportes({ profile }) {
     setLoading(false)
   }
 
-  async function handleLogout() {
-    await supabase.auth.signOut()
-  }
 
   // Cálculos de ventas
   const cerradas    = orders.filter(o => ['cerrada','entregado_pagado'].includes(o.status))
@@ -46,19 +43,7 @@ export default function Reportes({ profile }) {
 
   return (
     <div className="page">
-      <header className="page__header">
-        <span className="page__logo">/// IMPRENTA</span>
-        <nav className="nav-links">
-          {(profile?.role === 'owner') && (
-            <NavLink to="/admin" className={({isActive}) => `nav-link${isActive?' active':''}`}>Admin</NavLink>
-          )}
-          <NavLink to="/reportes" className={({isActive}) => `nav-link${isActive?' active':''}`}>Reportes</NavLink>
-        </nav>
-        <div className="page__user">
-          <span className="page__role">{profile?.full_name}</span>
-          <button className="btn btn--ghost" onClick={handleLogout}>Salir</button>
-        </div>
-      </header>
+      <Navbar profile={profile} />
 
       <main className="page__content">
         <h1 className="page__title">Reportes</h1>
