@@ -166,14 +166,14 @@ export default function NuevaOrden({ profile }) {
       setLoading(false); return
     }
 
-    // 3. Insertar ítems
+    // 3. Insertar ítems — reposiciones van con precio 0
     const { error: itemsErr } = await supabase
       .from('order_items')
       .insert(items.map(item => ({
         order_id:     order.id,
         product_id:   item.product_id || null,
         product_name: item.product_name,
-        unit_price:   parseFloat(item.unit_price),
+        unit_price:   isReposition ? 0 : parseFloat(item.unit_price),
         quantity:     parseFloat(item.quantity),
         notes:        item.notes || null,
       })))
@@ -184,6 +184,12 @@ export default function NuevaOrden({ profile }) {
     }
 
     // 4. Registrar pago inicial si corresponde
+    // Las reposiciones no generan cobro ni crédito
+    if (isReposition) {
+      await supabase.from('orders')
+        .update({ total_amount: 0, credit_amount: 0, initial_payment: 0 })
+        .eq('id', order.id)
+    } else {
     const total = order.total_amount || items.reduce((s, i) =>
       s + (parseFloat(i.unit_price)||0) * (parseFloat(i.quantity)||0), 0)
 
@@ -220,6 +226,7 @@ export default function NuevaOrden({ profile }) {
         created_by:     profile.id,
       })
     }
+    } // fin bloque pagos (no aplica a reposiciones)
 
     // Fetch the full order with items for the ticket
     const { data: fullOrder } = await supabase
@@ -366,14 +373,16 @@ export default function NuevaOrden({ profile }) {
 
             <div className="ticket__total-row">
               <span className="ticket__total-label">TOTAL</span>
-              <span className="ticket__total-amount">Q{o.total_amount?.toFixed(2)}</span>
+              <span className="ticket__total-amount">
+                {o.is_reposition ? 'Q0.00 — Reposición' : `Q${o.total_amount?.toFixed(2)}`}
+              </span>
             </div>
 
             {o.notes && (
               <>
                 <div className="ticket__divider" />
                 <div className="ticket__section">
-                  <div className="ticket__section-title">Nombre delarchivo(s):</div>
+                  <div className="ticket__section-title">Notas</div>
                   <p className="ticket__notes">{o.notes}</p>
                 </div>
               </>
@@ -406,9 +415,9 @@ export default function NuevaOrden({ profile }) {
                 <ClientAutocomplete onSelect={handleClientSelect} onNew={handleClientNew} />
               </div>
               <div className="form-group">
-                <label className="form-label">Nombre del archivo</label>
+                <label className="form-label">Notas generales</label>
                 <input className="form-input" type="text" value={notes}
-                  onChange={e => setNotes(e.target.value)} placeholder="archivo.pdf / png / img /" />
+                  onChange={e => setNotes(e.target.value)} placeholder="Instrucciones especiales..." />
               </div>
             </div>
 
@@ -569,12 +578,14 @@ export default function NuevaOrden({ profile }) {
             </div>
             <div className="total-row">
               <span className="total-label">TOTAL</span>
-              <span className="total-amount">Q{total.toFixed(2)}</span>
+              <span className="total-amount" style={isReposition ? { color: '#4ade80' } : {}}>
+                {isReposition ? 'Q0.00 (reposición)' : `Q${total.toFixed(2)}`}
+              </span>
             </div>
           </section>
 
-          {/* PAGO INICIAL */}
-          <section className="form-section">
+          {/* PAGO INICIAL — no aplica a reposiciones */}
+          {!isReposition && <section className="form-section">
             <h2 className="form-section__title">Pago al crear la orden</h2>
             <div className="payment-type-selector">
               {[
@@ -627,7 +638,18 @@ export default function NuevaOrden({ profile }) {
                 ⚠ La orden queda con Q{total.toFixed(2)} pendiente de cobro.
               </p>
             )}
-          </section>
+          </section>}
+
+          {/* Aviso cuando es reposición */}
+          {isReposition && (
+            <div style={{
+              background: '#0a1a0a', border: '1px solid #166534',
+              borderRadius: '8px', padding: '0.85rem 1rem',
+              fontSize: '0.82rem', color: '#4ade80'
+            }}>
+              ✓ Esta es una reposición — no genera cobro ni crédito. Total: <strong>Q0.00</strong>
+            </div>
+          )}
 
           {error   && <p className="error-text">{error}</p>}
           {success && <p className="success-text">{success}</p>}
