@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { NavLink } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
+import Navbar from '../components/Navbar'
 import OrderCard from '../components/OrderCard'
 
 export default function MisOrdenes({ profile }) {
@@ -36,9 +36,6 @@ export default function MisOrdenes({ profile }) {
     fetchOrders()
   }
 
-  async function handleLogout() {
-    await supabase.auth.signOut()
-  }
 
   const filtered = orders.filter(o => {
     const matchSearch = !search ||
@@ -58,17 +55,7 @@ export default function MisOrdenes({ profile }) {
 
   return (
     <div className="page">
-      <header className="page__header">
-        <span className="page__logo">/// IMPRENTA</span>
-        <nav className="nav-links">
-          <NavLink to="/nueva-orden" className={({isActive}) => `nav-link${isActive?' active':''}`}>Nueva Orden</NavLink>
-          <NavLink to="/mis-ordenes" className={({isActive}) => `nav-link${isActive?' active':''}`}>Órdenes</NavLink>
-        </nav>
-        <div className="page__user">
-          <span className="page__role">{profile?.full_name}</span>
-          <button className="btn btn--ghost" onClick={handleLogout}>Salir</button>
-        </div>
-      </header>
+      <Navbar profile={profile} />
 
       <main className="page__content">
         <h1 className="page__title">Órdenes</h1>

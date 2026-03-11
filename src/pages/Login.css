@@ -36,22 +36,14 @@
 .login-logo {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  justify-content: center;
 }
 
-.login-logo__mark {
-  font-family: var(--font-mono);
-  font-size: 1.4rem;
-  font-weight: 700;
-  color: var(--accent);
-}
-
-.login-logo__name {
-  font-family: var(--font-mono);
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--text);
-  letter-spacing: 0.15em;
+.login-logo__img {
+  width: 70%;
+  max-width: 260px;
+  height: auto;
+  object-fit: contain;
 }
 
 .login-subtitle {

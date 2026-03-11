@@ -10,6 +10,8 @@ import DashboardProduccion from './pages/DashboardProduccion'
 import Reportes from './pages/Reportes'
 import Admin from './pages/Admin'
 import Clientes from './pages/Clientes'
+import Bodega from './pages/Bodega'
+import CuentaCorriente from './pages/CuentaCorriente'
 
 export default function App() {
   const [session, setSession] = useState(undefined)
@@ -39,7 +41,6 @@ export default function App() {
     setProfile(data)
   }
 
-  // Cargando sesión
   if (session === undefined) {
     return (
       <div className="loading-screen">
@@ -74,7 +75,7 @@ export default function App() {
         } />
 
         <Route path="/reportes" element={
-          <ProtectedRoute session={session} profile={profile} allowedRoles={['admin', 'owner']}>
+          <ProtectedRoute session={session} profile={profile} allowedRoles={['owner']}>
             <Reportes profile={profile} />
           </ProtectedRoute>
         } />
@@ -82,6 +83,18 @@ export default function App() {
         <Route path="/clientes" element={
           <ProtectedRoute session={session} profile={profile} allowedRoles={['designer', 'admin', 'owner']}>
             <Clientes profile={profile} />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/bodega" element={
+          <ProtectedRoute session={session} profile={profile} allowedRoles={['warehouse', 'admin', 'owner']}>
+            <Bodega profile={profile} />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/cuenta-corriente" element={
+          <ProtectedRoute session={session} profile={profile} allowedRoles={['owner']}>
+            <CuentaCorriente profile={profile} />
           </ProtectedRoute>
         } />
 
@@ -105,11 +118,12 @@ export default function App() {
 
 function getRoleRedirect(role) {
   const redirects = {
-    designer: '/mis-ordenes',
-    operator: '/dashboard-produccion',
-    delivery: '/mis-ordenes',
-    admin: '/reportes',
-    owner: '/admin',
+    designer:  '/mis-ordenes',
+    operator:  '/dashboard-produccion',
+    warehouse: '/bodega',
+    delivery:  '/mis-ordenes',
+    admin:     '/mis-ordenes',
+    owner:     '/admin',
   }
   return redirects[role] || '/login'
 }
