@@ -25,7 +25,7 @@ export default function Login() {
     <div className="login-page">
       <div className="login-card">
         <div className="login-logo">
-          <img src="/src/img/logo.png" alt="Avanza" className="login-logo__img" />
+          <img src="/logo.png" alt="Avanza" className="login-logo__img" />
         </div>
         <p className="login-subtitle">Sistema de Gestión de Producción</p>
 

@@ -40,7 +40,7 @@ export default function Navbar({ profile }) {
 
   return (
     <header className="page__header">
-      <img src="/src/img/logo.png" alt="Avanza" className="page__logo-img" />
+      <img src="/logo.png" alt="Avanza" className="page__logo-img" />
       <nav className="nav-links">
         {links.map(link => (
           <NavLink
