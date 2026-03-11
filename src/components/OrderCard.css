@@ -61,6 +61,13 @@
   color: #9ca3af;
 }
 
+.order-card__item-qty {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
 .order-card__footer {
   display: flex;
   justify-content: space-between;
