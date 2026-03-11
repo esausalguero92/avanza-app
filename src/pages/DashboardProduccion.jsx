@@ -37,10 +37,21 @@ export default function DashboardProduccion({ profile }) {
   }
 
 
+  const PRIORITY_ORDER = { urgente: 0, prioritaria: 1, normal: 2 }
+
+  function sortByPriority(list) {
+    return [...list].sort((a, b) => {
+      const pa = PRIORITY_ORDER[a.priority] ?? 2
+      const pb = PRIORITY_ORDER[b.priority] ?? 2
+      if (pa !== pb) return pa - pb
+      return new Date(a.created_at) - new Date(b.created_at)
+    })
+  }
+
   const columns = {
-    abierta:    orders.filter(o => o.status === 'abierta'),
-    en_proceso: orders.filter(o => o.status === 'en_proceso'),
-    lista:      orders.filter(o => o.status === 'lista'),
+    abierta:    sortByPriority(orders.filter(o => o.status === 'abierta')),
+    en_proceso: sortByPriority(orders.filter(o => o.status === 'en_proceso')),
+    lista:      sortByPriority(orders.filter(o => o.status === 'lista')),
   }
 
   return (
@@ -87,7 +98,7 @@ export default function DashboardProduccion({ profile }) {
                         order={o}
                         userRole={profile?.role}
                         onStatusChange={handleStatusChange}
-                        onEdit={() => {}}
+                        onEdit={null}
                         allowedRoles={{ edit: ['admin', 'owner'] }}
                       />
                     ))
@@ -110,7 +121,7 @@ export default function DashboardProduccion({ profile }) {
                         order={o}
                         userRole={profile?.role}
                         onStatusChange={handleStatusChange}
-                        onEdit={() => {}}
+                        onEdit={null}
                         allowedRoles={{ edit: ['admin', 'owner'] }}
                       />
                     ))
@@ -133,7 +144,7 @@ export default function DashboardProduccion({ profile }) {
                         order={o}
                         userRole={profile?.role}
                         onStatusChange={handleStatusChange}
-                        onEdit={() => {}}
+                        onEdit={null}
                         allowedRoles={{ edit: ['admin', 'owner'] }}
                       />
                     ))

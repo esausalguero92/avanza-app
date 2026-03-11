@@ -279,3 +279,98 @@ html, body, #root {
   color: var(--accent);
   background: rgba(245, 158, 11, 0.08);
 }
+
+/* ══════════════════════════════════════════════════════════════
+   RESPONSIVE — MOBILE
+   ══════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* Layout general */
+  .page__content {
+    padding: 1rem;
+  }
+
+  .page__title {
+    font-size: 1.15rem;
+    margin-bottom: 1rem;
+  }
+
+  /* Header más compacto */
+  .page__header {
+    padding: 0.5rem 1rem;
+  }
+
+  .page__logo-img {
+    height: 52px;
+  }
+
+  /* Stats en columna */
+  .stats-row {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.6rem;
+  }
+
+  .stat-card {
+    padding: 0.75rem;
+  }
+
+  .stat-card__value {
+    font-size: 1.4rem;
+  }
+
+  /* Formularios */
+  .form-row {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .form-section {
+    padding: 1rem;
+  }
+
+  /* Botones de acción apilados */
+  .form-actions {
+    flex-direction: column-reverse;
+    gap: 0.6rem;
+  }
+
+  .form-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Modales full-width */
+  .modal {
+    width: 95vw;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  /* Tabla de ítems scroll horizontal */
+  .items-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Prioridad y pago — columna */
+  .priority-options,
+  .payment-type-selector {
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .priority-option {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-row {
+    grid-template-columns: 1fr;
+  }
+
+  .page__title {
+    font-size: 1rem;
+  }
+}

@@ -41,24 +41,17 @@ export default function OrderCard({ order, onStatusChange, onEdit, allowedRoles,
         {order.order_items?.map(item => (
           <div key={item.id} className="order-card__item">
             <span>{item.product_name}</span>
-            <span>x{item.quantity} — Q{item.subtotal?.toFixed(2)}</span>
+            <span className="order-card__item-qty">x{item.quantity}</span>
           </div>
         ))}
       </div>
 
       <div className="order-card__footer">
-        <div className="order-card__totals">
-          <span className="order-card__total">Total: Q{order.total_amount?.toFixed(2)}</span>
-          {order.credit_amount > 0 && (
-            <span className="order-card__credit">Crédito: Q{order.credit_amount?.toFixed(2)}</span>
-          )}
-        </div>
-
         <div className="order-card__actions">
           {canEdit && (
             <button className="btn btn--secondary" onClick={() => onEdit(order)}>Editar</button>
           )}
-          {nextStatuses.map(status => (
+          {onStatusChange && nextStatuses.map(status => (
             <button key={status.value} className={`btn ${status.variant}`}
               onClick={() => onStatusChange(order.id, status.value)}>
               {status.label}
@@ -75,6 +68,7 @@ function getNextStatuses(currentStatus, role) {
     operator: {
       abierta:    [{ value: 'en_proceso', label: 'Iniciar',      variant: 'btn--primary' }],
       en_proceso: [{ value: 'lista',      label: 'Marcar Lista', variant: 'btn--success' }],
+      lista:      [{ value: 'en_envio',   label: 'Enviar',       variant: 'btn--primary' }],
     },
     designer: {
       lista: [{ value: 'en_envio', label: 'Enviar', variant: 'btn--primary' }],

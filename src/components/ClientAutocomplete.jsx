@@ -37,7 +37,7 @@ export default function ClientAutocomplete({ onSelect, onNew }) {
     setLoading(true)
     const { data } = await supabase
       .from('clients')
-      .select('id, name, phone, email, nit')
+      .select('id, name, phone, email, nit, address')
       .ilike('name', `%${text}%`)
       .limit(8)
     setResults(data || [])

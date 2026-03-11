@@ -81,7 +81,7 @@ export default function App() {
         } />
 
         <Route path="/clientes" element={
-          <ProtectedRoute session={session} profile={profile} allowedRoles={['designer', 'admin', 'owner']}>
+          <ProtectedRoute session={session} profile={profile} allowedRoles={['admin', 'owner']}>
             <Clientes profile={profile} />
           </ProtectedRoute>
         } />

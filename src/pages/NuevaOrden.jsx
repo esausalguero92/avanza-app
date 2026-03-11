@@ -373,7 +373,7 @@ export default function NuevaOrden({ profile }) {
               <>
                 <div className="ticket__divider" />
                 <div className="ticket__section">
-                  <div className="ticket__section-title">Notas</div>
+                  <div className="ticket__section-title">Nombre delarchivo(s):</div>
                   <p className="ticket__notes">{o.notes}</p>
                 </div>
               </>
@@ -406,9 +406,9 @@ export default function NuevaOrden({ profile }) {
                 <ClientAutocomplete onSelect={handleClientSelect} onNew={handleClientNew} />
               </div>
               <div className="form-group">
-                <label className="form-label">Notas generales</label>
+                <label className="form-label">Nombre del archivo</label>
                 <input className="form-input" type="text" value={notes}
-                  onChange={e => setNotes(e.target.value)} placeholder="Instrucciones especiales..." />
+                  onChange={e => setNotes(e.target.value)} placeholder="archivo.pdf / png / img /" />
               </div>
             </div>
 
