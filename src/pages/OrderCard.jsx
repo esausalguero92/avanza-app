@@ -7,12 +7,10 @@ const PRIORITY_CONFIG = {
   normal:      { label: null,          color: null },
 }
 
-export default function OrderCard({ order, onStatusChange, onEdit, allowedRoles, userRole, context }) {
+export default function OrderCard({ order, onStatusChange, onEdit, allowedRoles, userRole }) {
   const canEdit      = allowedRoles?.edit?.includes(userRole)
   const isDelivery   = order.delivery_type === 'delivery'
-  // context='production' = dashboard (sin botones de entrega final)
-  // context='orders' = mis-ordenes (con botones de entrega para local)
-  const nextStatuses = getNextStatuses(order.status, userRole, isDelivery, context)
+  const nextStatuses = getNextStatuses(order.status, userRole, isDelivery)
   const prio         = PRIORITY_CONFIG[order.priority] || PRIORITY_CONFIG.normal
 
   return (
@@ -70,42 +68,36 @@ export default function OrderCard({ order, onStatusChange, onEdit, allowedRoles,
   )
 }
 
-function getNextStatuses(currentStatus, role, isDelivery, context) {
-  const isProduction = context === 'production'
+function getNextStatuses(currentStatus, role, isDelivery) {
+  // Para local: lista → entregado directamente (sin pasar por en_envio)
+  // Para delivery: lista → en_envio → entregado (vía Telegram)
 
-  // Delivery siempre pasa por en_envio (Telegram lo resuelve)
-  // Local: va directo a entregado sin importar si es dashboard o mis-ordenes
   const listaTransition = isDelivery
-    ? [{ value: 'en_envio', label: 'Enviar 🛵', variant: 'btn--primary' }]
+    ? [{ value: 'en_envio',          label: 'Enviar',           variant: 'btn--primary' }]
     : [
-        { value: 'entregado_pagado',    label: 'Entregado / Pagado',  variant: 'btn--success'   },
-        { value: 'entregado_pendiente', label: 'Entregado / Crédito', variant: 'btn--secondary' },
+        { value: 'entregado_pagado',    label: 'Entregado / Pagado',    variant: 'btn--success' },
+        { value: 'entregado_pendiente', label: 'Entregado / Crédito',   variant: 'btn--secondary' },
       ]
 
   const transitions = {
-    designer: {
-      // Designer solo puede marcar entrega en órdenes locales desde MisOrdenes
-      lista: !isProduction && !isDelivery ? listaTransition : [],
-    },
     operator: {
-      abierta:    isProduction ? [{ value: 'en_proceso', label: 'Iniciar', variant: 'btn--primary' }] : [],
-      en_proceso: [{ value: 'lista', label: 'Marcar Lista', variant: 'btn--success' }],
+      abierta:    [{ value: 'en_proceso', label: 'Iniciar',      variant: 'btn--primary' }],
+      en_proceso: [{ value: 'lista',      label: 'Marcar Lista', variant: 'btn--success' }],
       lista:      listaTransition,
     },
     admin: {
-      // En MisOrdenes no mostrar Iniciar — eso es del operador en el dashboard
-      abierta:             isProduction ? [{ value: 'en_proceso', label: 'Iniciar', variant: 'btn--primary' }] : [],
-      en_proceso:          [{ value: 'lista',   label: 'Lista',  variant: 'btn--success' }],
+      abierta:             [{ value: 'en_proceso', label: 'Iniciar', variant: 'btn--primary' }],
+      en_proceso:          [{ value: 'lista',      label: 'Lista',   variant: 'btn--success' }],
       lista:               listaTransition,
-      entregado_pendiente: [{ value: 'cerrada', label: 'Cerrar', variant: 'btn--danger'  }],
-      entregado_pagado:    [{ value: 'cerrada', label: 'Cerrar', variant: 'btn--danger'  }],
+      entregado_pendiente: [{ value: 'cerrada',    label: 'Cerrar',  variant: 'btn--danger'  }],
+      entregado_pagado:    [{ value: 'cerrada',    label: 'Cerrar',  variant: 'btn--danger'  }],
     },
     owner: {
-      abierta:             isProduction ? [{ value: 'en_proceso', label: 'Iniciar', variant: 'btn--primary' }] : [],
-      en_proceso:          [{ value: 'lista',   label: 'Lista',  variant: 'btn--success' }],
+      abierta:             [{ value: 'en_proceso', label: 'Iniciar', variant: 'btn--primary' }],
+      en_proceso:          [{ value: 'lista',      label: 'Lista',   variant: 'btn--success' }],
       lista:               listaTransition,
-      entregado_pendiente: [{ value: 'cerrada', label: 'Cerrar', variant: 'btn--danger'  }],
-      entregado_pagado:    [{ value: 'cerrada', label: 'Cerrar', variant: 'btn--danger'  }],
+      entregado_pendiente: [{ value: 'cerrada',    label: 'Cerrar',  variant: 'btn--danger'  }],
+      entregado_pagado:    [{ value: 'cerrada',    label: 'Cerrar',  variant: 'btn--danger'  }],
     },
   }
   return transitions[role]?.[currentStatus] || []

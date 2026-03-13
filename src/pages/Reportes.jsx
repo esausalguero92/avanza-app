@@ -8,6 +8,7 @@ const TABS = [
   { key: 'creditos',     label: 'Créditos' },
   { key: 'clientes',     label: 'Por Cliente' },
   { key: 'reposiciones', label: 'Reposiciones' },
+  { key: 'tiempos',      label: 'Tiempos' },
 ]
 
 const PERIODS = [
@@ -75,7 +76,8 @@ export default function Reportes({ profile }) {
   const [loading, setLoading]   = useState(true)
 
   const [orders, setOrders]     = useState([])
-  const [payments, setPayments] = useState([])
+  const [payments, setPayments]   = useState([])
+  const [history, setHistory]       = useState([])
   const [clientSearch, setClientSearch] = useState('')
 
   useEffect(() => { fetchData() }, [period, fromDate, toDate])
@@ -84,7 +86,7 @@ export default function Reportes({ profile }) {
     setLoading(true)
     const range = getDateRange(period, fromDate, toDate)
 
-    const [{ data: ordData }, { data: payData }] = await Promise.all([
+    const [{ data: ordData }, { data: payData }, { data: histData }] = await Promise.all([
       supabase.from('orders')
         .select('*, order_items(*)')
         .gte('created_at', range.from)
@@ -95,10 +97,17 @@ export default function Reportes({ profile }) {
         .gte('created_at', range.from)
         .lte('created_at', range.to)
         .order('created_at', { ascending: false }),
+      supabase.from('order_history')
+        .select('*, orders(order_number, client_name)')
+        .eq('field_changed', 'status')
+        .gte('created_at', range.from)
+        .lte('created_at', range.to)
+        .order('created_at', { ascending: false }),
     ])
 
     setOrders(ordData || [])
     setPayments(payData || [])
+    setHistory(histData || [])
     setLoading(false)
   }
 
@@ -387,6 +396,78 @@ export default function Reportes({ profile }) {
                 </table>
               </>
             )}
+
+            {/* ── TIEMPOS ─────────────────────────────────── */}
+            {tab === 'tiempos' && (() => {
+              // Agrupar historial por orden
+              const orderMap = {}
+              history.forEach(h => {
+                const key = h.order_id
+                if (!orderMap[key]) {
+                  orderMap[key] = {
+                    orderNumber: h.orders?.order_number,
+                    clientName:  h.orders?.client_name,
+                    changes:     [],
+                  }
+                }
+                orderMap[key].changes.push(h)
+              })
+
+              function formatDuration(intervalStr) {
+                if (!intervalStr) return '—'
+                // PostgreSQL devuelve interval como string "HH:MM:SS" o "X days HH:MM:SS"
+                const parts = intervalStr.split(':')
+                if (parts.length >= 2) {
+                  const h = parseInt(parts[0]) || 0
+                  const m = parseInt(parts[1]) || 0
+                  if (h > 24) return `${Math.floor(h/24)}d ${h%24}h`
+                  if (h > 0)  return `${h}h ${m}min`
+                  return `${m}min`
+                }
+                return intervalStr
+              }
+
+              const entries = Object.values(orderMap)
+
+              return entries.length === 0 ? (
+                <p className="empty-state">Sin cambios de estado en este período.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {entries.map((entry, i) => (
+                    <div key={i} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
+                      <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--accent)' }}>
+                          #{entry.orderNumber}
+                        </span>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{entry.clientName}</span>
+                      </div>
+                      <table className="report-table" style={{ margin: 0 }}>
+                        <thead>
+                          <tr>
+                            <th>Estado anterior</th>
+                            <th>Nuevo estado</th>
+                            <th>Tiempo en estado</th>
+                            <th>Fecha cambio</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {entry.changes.map((c, j) => (
+                            <tr key={j}>
+                              <td className="muted">{c.old_value || '—'}</td>
+                              <td style={{ fontWeight: 600 }}>{c.new_value || '—'}</td>
+                              <td className="mono" style={{ color: '#60a5fa' }}>
+                                {formatDuration(c.time_in_status)}
+                              </td>
+                              <td className="muted">{new Date(c.created_at).toLocaleString('es-GT')}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ))}
+                </div>
+              )
+            })()}
 
           </div>
         )}

@@ -21,7 +21,7 @@ export default function DashboardProduccion({ profile }) {
   async function fetchOrders() {
     const { data } = await supabase
       .from('orders')
-      .select(`*, order_items(*), priority`)
+      .select(`*, order_items(*)`)
       .in('status', PRODUCTION_STATUSES)
       .order('created_at', { ascending: true })
     setOrders(data || [])
@@ -29,10 +29,15 @@ export default function DashboardProduccion({ profile }) {
   }
 
   async function handleStatusChange(orderId, newStatus) {
-    await supabase
+    const { error } = await supabase
       .from('orders')
       .update({ status: newStatus })
       .eq('id', orderId)
+    if (error) {
+      console.error('Error al cambiar estado:', error)
+      alert('Error RLS: ' + error.message)
+      return
+    }
     fetchOrders()
   }
 
@@ -99,6 +104,7 @@ export default function DashboardProduccion({ profile }) {
                         userRole={profile?.role}
                         onStatusChange={handleStatusChange}
                         onEdit={null}
+                        context="production"
                         allowedRoles={{ edit: ['admin', 'owner'] }}
                       />
                     ))
@@ -122,6 +128,7 @@ export default function DashboardProduccion({ profile }) {
                         userRole={profile?.role}
                         onStatusChange={handleStatusChange}
                         onEdit={null}
+                        context="production"
                         allowedRoles={{ edit: ['admin', 'owner'] }}
                       />
                     ))
@@ -145,6 +152,7 @@ export default function DashboardProduccion({ profile }) {
                         userRole={profile?.role}
                         onStatusChange={handleStatusChange}
                         onEdit={null}
+                        context="production"
                         allowedRoles={{ edit: ['admin', 'owner'] }}
                       />
                     ))

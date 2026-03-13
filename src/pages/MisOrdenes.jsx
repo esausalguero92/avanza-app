@@ -19,6 +19,7 @@ export default function MisOrdenes({ profile }) {
   const [editClientName, setEditClientName] = useState('')
   const [products, setProducts]     = useState([])
   const [saving, setSaving]         = useState(false)
+  const [savedOrder, setSavedOrder]   = useState(null)
   const [editError, setEditError]   = useState('')
 
   useEffect(() => {
@@ -67,7 +68,7 @@ export default function MisOrdenes({ profile }) {
     setEditError('')
   }
 
-  function closeEdit() { setEditOrder(null) }
+  function closeEdit() { setEditOrder(null); setSavedOrder(null) }
 
   // ── Manejo de ítems del modal ───────────────────────────────
   function updateItem(index, field, value) {
@@ -133,8 +134,15 @@ export default function MisOrdenes({ profile }) {
 
     if (itemsErr) { setEditError('Error al guardar ítems: ' + itemsErr.message); setSaving(false); return }
 
+    // Cargar orden actualizada con ítems para el ticket
+    const { data: updatedOrder } = await supabase
+      .from('orders')
+      .select('*, order_items(*)')
+      .eq('id', editOrder.id)
+      .single()
+
     setSaving(false)
-    closeEdit()
+    setSavedOrder(updatedOrder)
     fetchOrders()
   }
 
@@ -220,8 +228,9 @@ export default function MisOrdenes({ profile }) {
                     key={order.id}
                     order={order}
                     userRole={profile?.role}
-                    onStatusChange={null}
+                    onStatusChange={handleStatusChange}
                     onEdit={canEdit ? handleEdit : null}
+                    context="orders"
                     allowedRoles={{ edit: ['designer', 'admin', 'owner'] }}
                   />
                 ))
@@ -345,12 +354,96 @@ export default function MisOrdenes({ profile }) {
 
               {editError && <p className="error-text">{editError}</p>}
 
-              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
-                <button type="button" className="btn btn--ghost" onClick={closeEdit}>Cancelar</button>
-                <button type="submit" className="btn btn--primary" disabled={saving}>
-                  {saving ? 'Guardando...' : 'Guardar Cambios'}
-                </button>
-              </div>
+              {savedOrder ? (
+                /* ── Vista post-guardado con ticket ── */
+                <div>
+                  <p style={{ color: '#4ade80', fontWeight: 600, marginBottom: '1rem' }}>
+                    ✓ Orden #{savedOrder.order_number} actualizada correctamente
+                  </p>
+
+                  {/* Ticket imprimible */}
+                  <div className="ticket" id="ticket-print" style={{ background: '#fff', color: '#000', padding: '1rem', borderRadius: '6px', fontSize: '0.8rem' }}>
+                    <div className="ticket__header">
+                      <div className="ticket__logo">/// AVANZA</div>
+                      <div className="ticket__order-num">#{savedOrder.order_number}</div>
+                    </div>
+                    <div className="ticket__meta">
+                      <div className="ticket__meta-row">
+                        <span className="ticket__label">Fecha:</span>
+                        <span>{new Date(savedOrder.created_at).toLocaleString('es-GT')}</span>
+                      </div>
+                      <div className="ticket__meta-row">
+                        <span className="ticket__label">Cliente:</span>
+                        <span style={{ fontWeight: 700 }}>{savedOrder.client_name}</span>
+                      </div>
+                      <div className="ticket__meta-row">
+                        <span className="ticket__label">Prioridad:</span>
+                        <span style={{ fontWeight: 700, color: savedOrder.priority === 'urgente' ? '#dc2626' : savedOrder.priority === 'prioritaria' ? '#d97706' : 'inherit' }}>
+                          {{ normal: 'Normal', prioritaria: 'PRIORITARIA', urgente: 'URGENTE' }[savedOrder.priority] || 'Normal'}
+                        </span>
+                      </div>
+                      <div className="ticket__meta-row">
+                        <span className="ticket__label">Entrega:</span>
+                        <span style={{ fontWeight: 700 }}>
+                          {savedOrder.delivery_type === 'delivery' ? '🛵 Delivery' : '🏠 En local'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="ticket__divider" />
+                    <div className="ticket__section">
+                      <div className="ticket__section-title">Productos</div>
+                      <table className="ticket__items-table">
+                        <thead>
+                          <tr><th>Producto</th><th>Cant.</th><th>P.Unit</th><th>Subtotal</th></tr>
+                        </thead>
+                        <tbody>
+                          {(savedOrder.order_items || []).map((item, i) => (
+                            <tr key={i}>
+                              <td>{item.product_name}</td>
+                              <td>{item.quantity}</td>
+                              <td>Q{parseFloat(item.unit_price).toFixed(2)}</td>
+                              <td>Q{(item.quantity * item.unit_price).toFixed(2)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="ticket__divider" />
+                    <div className="ticket__total-row">
+                      <span className="ticket__total-label">TOTAL</span>
+                      <span className="ticket__total-amount">
+                        {savedOrder.is_reposition ? 'Q0.00 — Reposición' : `Q${savedOrder.total_amount?.toFixed(2)}`}
+                      </span>
+                    </div>
+                    {savedOrder.notes && (
+                      <>
+                        <div className="ticket__divider" />
+                        <div className="ticket__section">
+                          <div className="ticket__section-title">Notas</div>
+                          <p className="ticket__notes">{savedOrder.notes}</p>
+                        </div>
+                      </>
+                    )}
+                    <div className="ticket__footer">
+                      Estado: {savedOrder.status?.toUpperCase()} — Gracias por su preferencia
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
+                    <button type="button" className="btn btn--ghost" onClick={closeEdit}>Cerrar</button>
+                    <button type="button" className="btn btn--primary" onClick={() => window.print()}>
+                      🖨 Imprimir Ticket
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                  <button type="button" className="btn btn--ghost" onClick={closeEdit}>Cancelar</button>
+                  <button type="submit" className="btn btn--primary" disabled={saving}>
+                    {saving ? 'Guardando...' : 'Guardar Cambios'}
+                  </button>
+                </div>
+              )}
             </form>
           </div>
         </div>
