@@ -29,6 +29,7 @@ export default function NuevaOrden({ profile }) {
   const [parentOrderId, setParentOrderId]       = useState('')
   const [repositionReason, setRepositionReason] = useState('error_impresion')
   const [priority, setPriority] = useState('normal')
+  const [deliveryType, setDeliveryType] = useState('local')
   // Pago inicial
   const [paymentType, setPaymentType]     = useState('completo') // completo | parcial | credito
   const [paymentMethod, setPaymentMethod] = useState('efectivo')
@@ -155,6 +156,7 @@ export default function NuevaOrden({ profile }) {
         status:            'abierta',
         priority:          priority,
         created_by:        profile.id,
+        delivery_type:     deliveryType,
         is_reposition:     isReposition,
         parent_order_id:   resolvedParentId,
         reposition_reason: isReposition ? repositionReason : null,
@@ -289,6 +291,7 @@ export default function NuevaOrden({ profile }) {
                 setIsReposition(false)
                 setParentOrderId('')
                 setItems([{ product_id: '', product_name: '', unit_price: '', quantity: 1, notes: '' }])
+                setDeliveryType('local')
                 setPaymentType('completo')
                 setPaymentMethod('efectivo')
                 setPartialAmount('')
@@ -323,6 +326,12 @@ export default function NuevaOrden({ profile }) {
                 <span className="ticket__label">Prioridad:</span>
                 <span style={{ fontWeight: 700, color: o.priority === 'urgente' ? '#dc2626' : o.priority === 'prioritaria' ? '#d97706' : 'inherit' }}>
                   {PRIORITY_LABEL[o.priority] || 'Normal'}
+                </span>
+              </div>
+              <div className="ticket__meta-row">
+                <span className="ticket__label">Entrega:</span>
+                <span style={{ fontWeight: 700 }}>
+                  {o.delivery_type === 'delivery' ? '🛵 Delivery' : '🏠 En local'}
                 </span>
               </div>
               {o.is_reposition && (
@@ -382,7 +391,7 @@ export default function NuevaOrden({ profile }) {
               <>
                 <div className="ticket__divider" />
                 <div className="ticket__section">
-                  <div className="ticket__section-title">Notas</div>
+                  <div className="ticket__section-title">Nombre del Archivo (s):</div>
                   <p className="ticket__notes">{o.notes}</p>
                 </div>
               </>
@@ -415,9 +424,9 @@ export default function NuevaOrden({ profile }) {
                 <ClientAutocomplete onSelect={handleClientSelect} onNew={handleClientNew} />
               </div>
               <div className="form-group">
-                <label className="form-label">Notas generales</label>
+                <label className="form-label">Nombre del Archivo (s):</label>
                 <input className="form-input" type="text" value={notes}
-                  onChange={e => setNotes(e.target.value)} placeholder="Instrucciones especiales..." />
+                  onChange={e => setNotes(e.target.value)} placeholder="archivo.pdf, .png, .img" />
               </div>
             </div>
 
@@ -521,6 +530,26 @@ export default function NuevaOrden({ profile }) {
                   style={{ '--p-color': opt.color }}>
                   <input type="radio" name="priority" value={opt.value}
                     checked={priority === opt.value} onChange={() => setPriority(opt.value)} />
+                  {opt.label}
+                </label>
+              ))}
+            </div>
+          </section>
+
+          {/* TIPO DE ENTREGA */}
+          <section className="form-section">
+            <h2 className="form-section__title">Tipo de entrega</h2>
+            <div className="payment-type-selector">
+              {[
+                { value: 'local',    label: '🏠 Entrega en local', color: '#60a5fa' },
+                { value: 'delivery', label: '🛵 Delivery',          color: '#f59e0b' },
+              ].map(opt => (
+                <label key={opt.value}
+                  className={`priority-option${deliveryType === opt.value ? ' priority-option--active' : ''}`}
+                  style={{ '--p-color': opt.color }}>
+                  <input type="radio" name="deliveryType" value={opt.value}
+                    checked={deliveryType === opt.value}
+                    onChange={() => setDeliveryType(opt.value)} />
                   {opt.label}
                 </label>
               ))}
