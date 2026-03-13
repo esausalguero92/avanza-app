@@ -29,13 +29,17 @@ export default function DashboardProduccion({ profile }) {
   }
 
   async function handleStatusChange(orderId, newStatus) {
+    const updates = { status: newStatus }
+    // Si se marca como pagado, limpiar el crédito pendiente
+    if (newStatus === 'entregado_pagado') updates.credit_amount = 0
+
     const { error } = await supabase
       .from('orders')
-      .update({ status: newStatus })
+      .update(updates)
       .eq('id', orderId)
     if (error) {
       console.error('Error al cambiar estado:', error)
-      alert('Error RLS: ' + error.message)
+      alert('Error: ' + error.message)
       return
     }
     fetchOrders()
