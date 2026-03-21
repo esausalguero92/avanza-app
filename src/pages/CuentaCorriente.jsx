@@ -36,7 +36,6 @@ export default function CuentaCorriente({ profile }) {
       .from('orders')
       .select('client_id, client_name, credit_amount')
       .gt('credit_amount', 0)
-      .not('status', 'eq', 'cerrada')
 
     if (!ordersData) { setLoading(false); return }
 
@@ -83,7 +82,6 @@ export default function CuentaCorriente({ profile }) {
       .select('*, order_items(*)')
       .eq('client_id', client.client_id)
       .gt('credit_amount', 0)
-      .not('status', 'eq', 'cerrada')
       .order('created_at', { ascending: false })
 
     // Historial de pagos
@@ -144,9 +142,8 @@ export default function CuentaCorriente({ profile }) {
         created_by:     profile.id,
       })
 
-      // Actualizar crédito en la orden
+      // Actualizar crédito en la orden (ya está cerrada, solo actualizar credit_amount)
       const updates = { credit_amount: newCredit }
-      if (newCredit === 0) updates.status = 'cerrada'
       await supabase.from('orders').update(updates).eq('id', ord.id)
     }
 

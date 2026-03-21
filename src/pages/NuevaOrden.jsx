@@ -28,12 +28,8 @@ export default function NuevaOrden({ profile }) {
   const [isReposition, setIsReposition]         = useState(false)
   const [parentOrderId, setParentOrderId]       = useState('')
   const [repositionReason, setRepositionReason] = useState('error_impresion')
-  const [priority, setPriority] = useState('normal')
+  const [priority, setPriority]   = useState('normal')
   const [deliveryType, setDeliveryType] = useState('local')
-  // Pago inicial
-  const [paymentType, setPaymentType]     = useState('completo') // completo | parcial | credito
-  const [paymentMethod, setPaymentMethod] = useState('efectivo')
-  const [partialAmount, setPartialAmount] = useState('')
   const [items, setItems] = useState([
     { product_id: '', product_name: '', unit_price: '', quantity: 1, notes: '' }
   ])
@@ -83,7 +79,7 @@ export default function NuevaOrden({ profile }) {
 
   function calcTotal() {
     return items.reduce((sum, item) =>
-      sum + ((parseFloat(item.unit_price) || 0) * (parseFloat(item.quantity) || 0)), 0)
+      sum + ((parseFloat(item.unit_price) || 0) * (parseInt(item.quantity, 10) || 0)), 0)
   }
 
   async function handleSubmit(e) {
@@ -110,11 +106,11 @@ export default function NuevaOrden({ profile }) {
       const { data: newClient, error: clientErr } = await supabase
         .from('clients')
         .insert({
-          name: clientName,
-          phone:   clientPhone.trim()   || null,
-          email:   clientEmail.trim()   || null,
-          nit:     clientNit.trim()     || null,
-          address: clientAddress.trim() || null,
+          name:       clientName,
+          phone:      clientPhone.trim()   || null,
+          email:      clientEmail.trim()   || null,
+          nit:        clientNit.trim()     || null,
+          address:    clientAddress.trim() || null,
           created_by: profile.id,
         })
         .select().single()
@@ -176,7 +172,7 @@ export default function NuevaOrden({ profile }) {
         product_id:   item.product_id || null,
         product_name: item.product_name,
         unit_price:   isReposition ? 0 : parseFloat(item.unit_price),
-        quantity:     parseFloat(item.quantity),
+        quantity:     parseInt(item.quantity, 10),
         notes:        item.notes || null,
       })))
 
@@ -185,52 +181,21 @@ export default function NuevaOrden({ profile }) {
       setLoading(false); return
     }
 
-    // 4. Registrar pago inicial si corresponde
-    // Las reposiciones no generan cobro ni crédito
+    // 4. Ajustar crédito
+    // Reposiciones: todo en cero
+    // Órdenes normales: credit_amount = total (se cobra al entregar vía Telegram)
     if (isReposition) {
       await supabase.from('orders')
         .update({ total_amount: 0, credit_amount: 0, initial_payment: 0 })
         .eq('id', order.id)
     } else {
-    const total = order.total_amount || items.reduce((s, i) =>
-      s + (parseFloat(i.unit_price)||0) * (parseFloat(i.quantity)||0), 0)
-
-    let creditAmount = 0
-    let paymentAmount = 0
-
-    if (paymentType === 'completo') {
-      paymentAmount = total
-      creditAmount  = 0
-    } else if (paymentType === 'parcial') {
-      paymentAmount = parseFloat(partialAmount) || 0
-      creditAmount  = Math.max(0, total - paymentAmount)
-    } else {
-      paymentAmount = 0
-      creditAmount  = total
+      const total = order.total_amount || calcTotal()
+      await supabase.from('orders')
+        .update({ credit_amount: total, initial_payment: 0 })
+        .eq('id', order.id)
     }
 
-    // Actualizar credit_amount en la orden
-    await supabase.from('orders')
-      .update({
-        credit_amount: creditAmount,
-        initial_payment: paymentAmount,
-        initial_payment_method: paymentType !== 'credito' ? paymentMethod : null,
-      })
-      .eq('id', order.id)
-
-    // Insertar pago si hubo abono
-    if (paymentAmount > 0) {
-      await supabase.from('payments').insert({
-        order_id:       order.id,
-        amount:         paymentAmount,
-        payment_method: paymentMethod,
-        notes:          'Pago inicial al crear la orden',
-        created_by:     profile.id,
-      })
-    }
-    } // fin bloque pagos (no aplica a reposiciones)
-
-    // Fetch the full order with items for the ticket
+    // 5. Fetch orden completa para el ticket
     const { data: fullOrder } = await supabase
       .from('orders')
       .select('*, order_items(*)')
@@ -251,14 +216,10 @@ export default function NuevaOrden({ profile }) {
     const items = o.order_items || []
     const PRIORITY_LABEL = { normal: 'Normal', prioritaria: 'PRIORITARIA', urgente: 'URGENTE' }
     const REPOSITION_LABEL = {
-      error_impresion: 'Error de impresión',
+      error_impresion:  'Error de impresión',
       placa_ctp_dañada: 'Placa CTP dañada',
       error_produccion: 'Error de producción',
-      otro: 'Otro',
-    }
-
-    function handlePrint() {
-      window.print()
+      otro:             'Otro',
     }
 
     return (
@@ -266,7 +227,6 @@ export default function NuevaOrden({ profile }) {
         <Navbar profile={profile} />
         <main className="page__content">
 
-          {/* Acciones (no se imprimen) */}
           <div className="no-print" style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.5rem' }}>
             <div>
               <h1 className="page__title" style={{ marginBottom:'0.25rem' }}>
@@ -277,24 +237,16 @@ export default function NuevaOrden({ profile }) {
               </p>
             </div>
             <div style={{ display:'flex', gap:'0.75rem' }}>
-              <button className="btn btn--primary" onClick={handlePrint}>
+              <button className="btn btn--primary" onClick={() => window.print()}>
                 🖨 Imprimir Ticket
               </button>
               <button className="btn btn--secondary" onClick={() => {
                 setCreatedOrder(null)
-                setSelectedClient(null)
-                setNewClientName('')
-                setShowClientForm(false)
+                setSelectedClient(null); setNewClientName(''); setShowClientForm(false)
                 setClientPhone(''); setClientEmail(''); setClientNit(''); setClientAddress('')
-                setNotes('')
-                setPriority('normal')
-                setIsReposition(false)
-                setParentOrderId('')
+                setNotes(''); setPriority('normal'); setIsReposition(false)
+                setParentOrderId(''); setDeliveryType('local')
                 setItems([{ product_id: '', product_name: '', unit_price: '', quantity: 1, notes: '' }])
-                setDeliveryType('local')
-                setPaymentType('completo')
-                setPaymentMethod('efectivo')
-                setPartialAmount('')
                 setError(''); setSuccess('')
               }}>
                 + Nueva Orden
@@ -307,7 +259,6 @@ export default function NuevaOrden({ profile }) {
 
           {/* TICKET IMPRIMIBLE */}
           <div className="ticket" id="ticket-print">
-
             <div className="ticket__header">
               <div className="ticket__logo">/// AVANZA</div>
               <div className="ticket__order-num">#{o.order_number}</div>
@@ -359,10 +310,7 @@ export default function NuevaOrden({ profile }) {
               <table className="ticket__items-table">
                 <thead>
                   <tr>
-                    <th>Producto</th>
-                    <th>Cant.</th>
-                    <th>P.Unit</th>
-                    <th>Subtotal</th>
+                    <th>Producto</th><th>Cant.</th><th>P.Unit</th><th>Subtotal</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -391,7 +339,7 @@ export default function NuevaOrden({ profile }) {
               <>
                 <div className="ticket__divider" />
                 <div className="ticket__section">
-                  <div className="ticket__section-title">Notas</div>
+                  <div className="ticket__section-title">Nombre de archivo</div>
                   <p className="ticket__notes">{o.notes}</p>
                 </div>
               </>
@@ -406,8 +354,8 @@ export default function NuevaOrden({ profile }) {
       </div>
     )
   }
-  // ─────────────────────────────────────────────────────────────────────────
 
+  // ── Formulario ────────────────────────────────────────────────────────────
   return (
     <div className="page">
       <Navbar profile={profile} />
@@ -424,42 +372,36 @@ export default function NuevaOrden({ profile }) {
                 <ClientAutocomplete onSelect={handleClientSelect} onNew={handleClientNew} />
               </div>
               <div className="form-group">
-                <label className="form-label">Notas generales</label>
+                <label className="form-label">Nombre de archivo</label>
                 <input className="form-input" type="text" value={notes}
-                  onChange={e => setNotes(e.target.value)} placeholder="Instrucciones especiales..." />
+                  onChange={e => setNotes(e.target.value)} placeholder="Ej: diseño_cliente_v2.pdf" />
               </div>
             </div>
 
-            {/* Datos de cliente existente (solo lectura) */}
             {selectedClient && (
               <div className="existing-client-data">
                 <p className="new-client-form__label"><span>✓</span> Datos del cliente</p>
                 <div className="form-row form-row--3">
                   <div className="form-group">
                     <label className="form-label">Teléfono</label>
-                    <input className="form-input" type="tel" readOnly
-                      value={selectedClient.phone || ''} placeholder="Sin teléfono" />
+                    <input className="form-input" type="tel" readOnly value={selectedClient.phone || ''} placeholder="Sin teléfono" />
                   </div>
                   <div className="form-group">
                     <label className="form-label">Correo electrónico</label>
-                    <input className="form-input" type="email" readOnly
-                      value={selectedClient.email || ''} placeholder="Sin correo" />
+                    <input className="form-input" type="email" readOnly value={selectedClient.email || ''} placeholder="Sin correo" />
                   </div>
                   <div className="form-group">
                     <label className="form-label">NIT</label>
-                    <input className="form-input" type="text" readOnly
-                      value={selectedClient.nit || ''} placeholder="Sin NIT" />
+                    <input className="form-input" type="text" readOnly value={selectedClient.nit || ''} placeholder="Sin NIT" />
                   </div>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Dirección</label>
-                  <input className="form-input" type="text" readOnly
-                    value={selectedClient.address || ''} placeholder="Sin dirección" />
+                  <input className="form-input" type="text" readOnly value={selectedClient.address || ''} placeholder="Sin dirección" />
                 </div>
               </div>
             )}
 
-            {/* Formulario para cliente nuevo */}
             {showClientForm && !selectedClient && (
               <div className="new-client-form">
                 <p className="new-client-form__label"><span>+</span> Datos adicionales del nuevo cliente (opcionales)</p>
@@ -591,13 +533,13 @@ export default function NuevaOrden({ profile }) {
                   </div>
                   <div className="form-group item-qty">
                     <label className="form-label">Cantidad</label>
-                    <input className="form-input" type="number" step="0.01" min="0.01"
+                    <input className="form-input" type="number" step="1" min="1"
                       value={item.quantity} onChange={e => updateItem(index, 'quantity', e.target.value)} />
                   </div>
                   <div className="form-group item-subtotal">
                     <label className="form-label">Subtotal</label>
                     <span className="subtotal-display">
-                      Q{((parseFloat(item.unit_price)||0) * (parseFloat(item.quantity)||0)).toFixed(2)}
+                      Q{((parseFloat(item.unit_price)||0) * (parseInt(item.quantity,10)||0)).toFixed(2)}
                     </span>
                   </div>
                   <button type="button" className="btn btn--danger item-remove"
@@ -613,63 +555,17 @@ export default function NuevaOrden({ profile }) {
             </div>
           </section>
 
-          {/* PAGO INICIAL — no aplica a reposiciones */}
-          {!isReposition && <section className="form-section">
-            <h2 className="form-section__title">Pago al crear la orden</h2>
-            <div className="payment-type-selector">
-              {[
-                { value: 'completo', label: '✓ Pago completo',  color: '#4ade80' },
-                { value: 'parcial',  label: '◑ Pago parcial',   color: '#fbbf24' },
-                { value: 'credito',  label: '○ Todo a crédito', color: '#f87171' },
-              ].map(opt => (
-                <label key={opt.value}
-                  className={`priority-option${paymentType === opt.value ? ' priority-option--active' : ''}`}
-                  style={{ '--p-color': opt.color }}>
-                  <input type="radio" name="paymentType" value={opt.value}
-                    checked={paymentType === opt.value}
-                    onChange={() => setPaymentType(opt.value)} />
-                  {opt.label}
-                </label>
-              ))}
+          {/* Aviso cobro */}
+          {!isReposition && total > 0 && (
+            <div style={{
+              background: '#0c1a2e', border: '1px solid #1e3a5f',
+              borderRadius: '8px', padding: '0.85rem 1rem',
+              fontSize: '0.82rem', color: '#60a5fa'
+            }}>
+              💳 El cobro se registrará al momento de la entrega vía Telegram.
             </div>
+          )}
 
-            {paymentType !== 'credito' && (
-              <div className="form-row" style={{ marginTop: '1rem' }}>
-                <div className="form-group">
-                  <label className="form-label">Método de pago</label>
-                  <select className="form-select" value={paymentMethod}
-                    onChange={e => setPaymentMethod(e.target.value)}>
-                    <option value="efectivo">Efectivo</option>
-                    <option value="transferencia">Transferencia</option>
-                    <option value="pos">POS</option>
-                    <option value="neolink">Neolink</option>
-                  </select>
-                </div>
-                {paymentType === 'parcial' && (
-                  <div className="form-group">
-                    <label className="form-label">Monto abonado (Q)</label>
-                    <input className="form-input" type="number" min="0" step="0.01"
-                      value={partialAmount}
-                      onChange={e => setPartialAmount(e.target.value)}
-                      placeholder="0.00" />
-                    {partialAmount && total > 0 && (
-                      <span style={{ fontSize:'0.75rem', color:'#fbbf24', marginTop:'4px', display:'block' }}>
-                        Crédito pendiente: Q{Math.max(0, total - parseFloat(partialAmount || 0)).toFixed(2)}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {paymentType === 'credito' && (
-              <p style={{ fontSize:'0.78rem', color:'#f87171', marginTop:'0.75rem' }}>
-                ⚠ La orden queda con Q{total.toFixed(2)} pendiente de cobro.
-              </p>
-            )}
-          </section>}
-
-          {/* Aviso cuando es reposición */}
           {isReposition && (
             <div style={{
               background: '#0a1a0a', border: '1px solid #166534',
