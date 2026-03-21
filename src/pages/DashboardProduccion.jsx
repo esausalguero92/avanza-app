@@ -15,7 +15,14 @@ export default function DashboardProduccion({ profile }) {
       .channel('produccion-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, fetchOrders)
       .subscribe()
-    return () => supabase.removeChannel(channel)
+
+    // Polling de respaldo para cambios externos (n8n/Telegram)
+    const poll = setInterval(fetchOrders, 20000)
+
+    return () => {
+      supabase.removeChannel(channel)
+      clearInterval(poll)
+    }
   }, [])
 
   async function fetchOrders() {

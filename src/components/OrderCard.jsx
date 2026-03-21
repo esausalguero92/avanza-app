@@ -7,13 +7,16 @@ const PRIORITY_CONFIG = {
   normal:      { label: null,          color: null },
 }
 
+// Estados que ya no se pueden editar
+const LOCKED_STATUSES = ['cerrada', 'entregado_pagado', 'entregado_pendiente']
+
 export default function OrderCard({ order, onStatusChange, onEdit, allowedRoles, userRole, context }) {
   const canEdit      = allowedRoles?.edit?.includes(userRole)
+  const isLocked     = LOCKED_STATUSES.includes(order.status)
   const isDelivery   = order.delivery_type === 'delivery'
-  // context='production' = dashboard (sin botones de entrega final)
-  // context='orders' = mis-ordenes (con botones de entrega para local)
-  const nextStatuses = getNextStatuses(order.status, userRole, isDelivery, context)
+  const nextStatuses = getNextStatuses(order.status, userRole, context)
   const prio         = PRIORITY_CONFIG[order.priority] || PRIORITY_CONFIG.normal
+  const hasCredit    = order.credit_amount > 0
 
   return (
     <div className={`order-card${order.priority !== 'normal' ? ' order-card--priority' : ''}`}
@@ -22,7 +25,6 @@ export default function OrderCard({ order, onStatusChange, onEdit, allowedRoles,
       <div className="order-card__header">
         <span className="order-card__number">#{order.order_number}</span>
         <div style={{ display:'flex', gap:'0.4rem', alignItems:'center', flexWrap:'wrap' }}>
-          {/* Badge tipo de entrega */}
           <span className={`delivery-badge delivery-badge--${isDelivery ? 'delivery' : 'local'}`}>
             {isDelivery ? '🛵 Delivery' : '🏠 Local'}
           </span>
@@ -53,17 +55,30 @@ export default function OrderCard({ order, onStatusChange, onEdit, allowedRoles,
         ))}
       </div>
 
-      {/* Saldo pendiente si hay crédito */}
-      {order.credit_amount > 0 && (
-        <div className="order-card__credit">
-          <span>💰 Saldo pendiente</span>
-          <span className="order-card__credit-amount">Q{parseFloat(order.credit_amount).toFixed(2)}</span>
+      {/* Saldo pendiente — solo informativo */}
+      {hasCredit && (
+        <div style={{
+          margin: '0.5rem 0',
+          padding: '0.5rem 0.75rem',
+          background: '#1c0a0a',
+          border: '1px solid #7f1d1d',
+          borderRadius: '6px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          fontSize: '0.82rem',
+        }}>
+          <span style={{ color: '#fca5a5' }}>🔴 Saldo pendiente</span>
+          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: '#ef4444' }}>
+            Q{parseFloat(order.credit_amount).toFixed(2)}
+          </span>
         </div>
       )}
 
       <div className="order-card__footer">
         <div className="order-card__actions">
-          {canEdit && onEdit && (
+          {/* Editar solo si la orden no está bloqueada */}
+          {canEdit && onEdit && !isLocked && (
             <button className="btn btn--secondary" onClick={() => onEdit(order)}>Editar</button>
           )}
           {onStatusChange && nextStatuses.map(status => (
@@ -78,42 +93,23 @@ export default function OrderCard({ order, onStatusChange, onEdit, allowedRoles,
   )
 }
 
-function getNextStatuses(currentStatus, role, isDelivery, context) {
-  const isProduction = context === 'production'
-
-  // Transición de entrega — solo en MisOrdenes y solo para local
-  // Delivery lo resuelve el repartidor por Telegram
-  const entregaTransition = isDelivery
-    ? [] // Telegram lo maneja
-    : [
-        { value: 'entregado_pagado',    label: 'Entregado / Pagado',  variant: 'btn--success'   },
-        { value: 'entregado_pendiente', label: 'Entregado / Crédito', variant: 'btn--secondary' },
-      ]
+// Flujo web: solo abierta → en_proceso → lista (context = 'production')
+// Todo lo demás se gestiona por Telegram
+function getNextStatuses(currentStatus, role, context) {
+  if (context !== 'production') return []
 
   const transitions = {
-    designer: {
-      // Solo puede marcar entrega en órdenes locales desde MisOrdenes
-      lista: !isProduction ? entregaTransition : [],
-    },
     operator: {
-      // En dashboard: solo producción. Nunca maneja entregas
-      abierta:    isProduction ? [{ value: 'en_proceso', label: 'Iniciar',    variant: 'btn--primary' }] : [],
-      en_proceso: isProduction ? [{ value: 'lista',      label: 'Terminado ✓', variant: 'btn--success' }] : [],
-      lista:      [], // Ya terminó su trabajo
+      abierta:    [{ value: 'en_proceso', label: 'Iniciar',      variant: 'btn--primary' }],
+      en_proceso: [{ value: 'lista',      label: 'Marcar Lista', variant: 'btn--success' }],
     },
     admin: {
-      abierta:             isProduction ? [{ value: 'en_proceso', label: 'Iniciar', variant: 'btn--primary' }] : [],
-      en_proceso:          isProduction ? [{ value: 'lista', label: 'Terminado ✓', variant: 'btn--success' }] : [],
-      lista:               !isProduction ? entregaTransition : [],
-      entregado_pendiente: [{ value: 'cerrada', label: 'Cerrar', variant: 'btn--danger' }],
-      entregado_pagado:    [{ value: 'cerrada', label: 'Cerrar', variant: 'btn--danger' }],
+      abierta:    [{ value: 'en_proceso', label: 'Iniciar',      variant: 'btn--primary' }],
+      en_proceso: [{ value: 'lista',      label: 'Marcar Lista', variant: 'btn--success' }],
     },
     owner: {
-      abierta:             isProduction ? [{ value: 'en_proceso', label: 'Iniciar', variant: 'btn--primary' }] : [],
-      en_proceso:          isProduction ? [{ value: 'lista', label: 'Terminado ✓', variant: 'btn--success' }] : [],
-      lista:               !isProduction ? entregaTransition : [],
-      entregado_pendiente: [{ value: 'cerrada', label: 'Cerrar', variant: 'btn--danger' }],
-      entregado_pagado:    [{ value: 'cerrada', label: 'Cerrar', variant: 'btn--danger' }],
+      abierta:    [{ value: 'en_proceso', label: 'Iniciar',      variant: 'btn--primary' }],
+      en_proceso: [{ value: 'lista',      label: 'Marcar Lista', variant: 'btn--success' }],
     },
   }
   return transitions[role]?.[currentStatus] || []

@@ -96,7 +96,7 @@ export default function MisOrdenes({ profile }) {
   }
 
   const editTotal = editItems.reduce((s, i) =>
-    s + (parseFloat(i.unit_price) || 0) * (parseFloat(i.quantity) || 0), 0)
+    s + (parseFloat(i.unit_price) || 0) * (parseInt(i.quantity, 10) || 0), 0)
 
   // ── Guardar cambios ─────────────────────────────────────────
   async function handleSave(e) {
@@ -127,7 +127,7 @@ export default function MisOrdenes({ profile }) {
         product_id:   item.product_id || null,
         product_name: item.product_name,
         unit_price:   parseFloat(item.unit_price),
-        quantity:     parseFloat(item.quantity),
+        quantity:     parseInt(item.quantity, 10),  // ← entero
         notes:        item.notes || null,
       }))
     )
@@ -315,7 +315,7 @@ export default function MisOrdenes({ profile }) {
                         </div>
                         <div className="form-group" style={{ maxWidth: '80px' }}>
                           <label className="form-label" style={{ fontSize: '0.7rem' }}>Cant.</label>
-                          <input className="form-input" type="number" min="1"
+                          <input className="form-input" type="number" min="1" step="1"
                             value={item.quantity}
                             onChange={e => updateItem(index, 'quantity', e.target.value)} />
                         </div>
@@ -336,12 +336,12 @@ export default function MisOrdenes({ profile }) {
                 </div>
               </div>
 
-              {/* Notas */}
+              {/* Nombre de archivo */}
               <div className="form-group">
-                <label className="form-label">Notas generales</label>
+                <label className="form-label">Nombre de archivo</label>
                 <textarea className="form-input" rows={2}
                   value={editNotes} onChange={e => setEditNotes(e.target.value)}
-                  placeholder="Instrucciones adicionales..." />
+                  placeholder="Ej: diseño_cliente_v2.pdf" />
               </div>
 
               {/* Total */}
@@ -419,7 +419,7 @@ export default function MisOrdenes({ profile }) {
                       <>
                         <div className="ticket__divider" />
                         <div className="ticket__section">
-                          <div className="ticket__section-title">Notas</div>
+                          <div className="ticket__section-title">Nombre de archivo</div>
                           <p className="ticket__notes">{savedOrder.notes}</p>
                         </div>
                       </>
