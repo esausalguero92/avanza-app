@@ -5,20 +5,8 @@
   justify-content: center;
   background: var(--bg);
   background-image:
-    repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 39px,
-      #1a1a1a 39px,
-      #1a1a1a 40px
-    ),
-    repeating-linear-gradient(
-      90deg,
-      transparent,
-      transparent 39px,
-      #1a1a1a 39px,
-      #1a1a1a 40px
-    );
+    repeating-linear-gradient(0deg, transparent, transparent 39px, #e8e8e2 39px, #e8e8e2 40px),
+    repeating-linear-gradient(90deg, transparent, transparent 39px, #e8e8e2 39px, #e8e8e2 40px);
 }
 
 .login-card {
@@ -31,6 +19,7 @@
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
 }
 
 .login-logo {

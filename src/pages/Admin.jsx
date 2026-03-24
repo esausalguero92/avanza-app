@@ -55,32 +55,44 @@ export default function Admin({ profile }) {
       setError('La contraseña debe tener al menos 6 caracteres.'); setSaving(false); return
     }
 
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email: newUser.email,
-      password: newUser.password,
-      options: { data: { full_name: newUser.full_name } }
-    })
+    try {
+      const res = await fetch(
+        'https://horizon-n8n.8qkrxr.easypanel.host/webhook/avanza-crear-usuario',
+        {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({
+            email:     newUser.email,
+            password:  newUser.password,
+            full_name: newUser.full_name,
+            role:      newUser.role,
+          }),
+        }
+      )
 
-    if (signUpError) {
-      setError('Error al crear usuario: ' + signUpError.message)
-      setSaving(false); return
+      let result
+      try {
+        result = await res.json()
+      } catch {
+        setError('Error: la respuesta del servidor no es válida. Verifica que W7 esté activo en n8n.')
+        setSaving(false); return
+      }
+
+      if (!result.ok) {
+        // Mostrar el error real para facilitar el diagnóstico
+        const detail = result.error || result.message || JSON.stringify(result)
+        setError('Error: ' + detail)
+        setSaving(false); return
+      }
+
+      setSuccess(`Usuario "${newUser.full_name}" creado como ${ROLE_LABELS[newUser.role]}.`)
+      setShowForm(false)
+      setNewUser(EMPTY_USER)
+      fetchUsers()
+    } catch (err) {
+      setError('Error de conexión al crear usuario.')
     }
 
-    const userId = data?.user?.id
-    if (!userId) {
-      setError('No se pudo obtener el ID del nuevo usuario.'); setSaving(false); return
-    }
-
-    const { error: profileError } = await supabase.from('profiles').upsert({
-      id: userId, full_name: newUser.full_name, role: newUser.role, active: true,
-    })
-
-    if (profileError) {
-      setError('Usuario creado pero error al asignar perfil: ' + profileError.message)
-    } else {
-      setSuccess('Usuario "' + newUser.full_name + '" creado como ' + ROLE_LABELS[newUser.role] + '.')
-      setShowForm(false); setNewUser(EMPTY_USER); fetchUsers()
-    }
     setSaving(false)
   }
 

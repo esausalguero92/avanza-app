@@ -1,10 +1,32 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import Navbar from '../components/Navbar'
-import OrderCard from '../components/OrderCard'
 
 const PRODUCTION_STATUSES = ['abierta', 'en_proceso', 'lista']
+const PRIORITY_ORDER = { urgente: 0, prioritaria: 1, normal: 2 }
 
+// ── Tarjeta compacta exclusiva para producción ─────────────────────────────
+function ProductionCard({ order }) {
+  const isDelivery = order.delivery_type === 'delivery'
+
+  return (
+    <div className={`pcard pcard--${order.priority}`}>
+
+      {/* Una sola línea: #Orden · Cliente · 🛵 */}
+      <div className="pcard__row">
+        <span className="pcard__num">#{order.order_number}</span>
+        <span className="pcard__sep">·</span>
+        <span className="pcard__client">{order.client_name}</span>
+        {isDelivery && <span className="pcard__delivery">🛵</span>}
+      </div>
+
+
+    </div>
+  )
+}
+
+
+// ── Dashboard principal ────────────────────────────────────────────────────
 export default function DashboardProduccion({ profile }) {
   const [orders, setOrders]   = useState([])
   const [loading, setLoading] = useState(true)
@@ -15,45 +37,20 @@ export default function DashboardProduccion({ profile }) {
       .channel('produccion-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, fetchOrders)
       .subscribe()
-
-    // Polling de respaldo para cambios externos (n8n/Telegram)
     const poll = setInterval(fetchOrders, 20000)
-
-    return () => {
-      supabase.removeChannel(channel)
-      clearInterval(poll)
-    }
+    return () => { supabase.removeChannel(channel); clearInterval(poll) }
   }, [])
 
   async function fetchOrders() {
     const { data } = await supabase
       .from('orders')
-      .select(`*, order_items(*)`)
+      .select('id,order_number,client_name,status,priority,delivery_type,created_at')
       .in('status', PRODUCTION_STATUSES)
       .order('created_at', { ascending: true })
     setOrders(data || [])
     setLoading(false)
   }
 
-  async function handleStatusChange(orderId, newStatus) {
-    const updates = { status: newStatus }
-    // Si se marca como pagado, limpiar el crédito pendiente
-    if (newStatus === 'entregado_pagado') updates.credit_amount = 0
-
-    const { error } = await supabase
-      .from('orders')
-      .update(updates)
-      .eq('id', orderId)
-    if (error) {
-      console.error('Error al cambiar estado:', error)
-      alert('Error: ' + error.message)
-      return
-    }
-    fetchOrders()
-  }
-
-
-  const PRIORITY_ORDER = { urgente: 0, prioritaria: 1, normal: 2 }
 
   function sortByPriority(list) {
     return [...list].sort((a, b) => {
@@ -74,149 +71,207 @@ export default function DashboardProduccion({ profile }) {
     <div className="page">
       <Navbar profile={profile} />
 
-      <main className="page__content" style={{maxWidth:'100%', padding:'1.5rem'}}>
-        <h1 className="page__title">Dashboard de Producción</h1>
+      <main className="dash-main">
 
-        {/* Stats */}
-        <div className="stats-row">
-          <div className="stat-card">
-            <span className="stat-card__label">En Cola</span>
-            <span className="stat-card__value" style={{color:'#60a5fa'}}>{columns.abierta.length}</span>
+        {/* Stats compactas */}
+        <div className="dash-stats">
+          <div className="dash-stat dash-stat--blue">
+            <span className="dash-stat__n">{columns.abierta.length}</span>
+            <span className="dash-stat__l">En Cola</span>
           </div>
-          <div className="stat-card">
-            <span className="stat-card__label">En Proceso</span>
-            <span className="stat-card__value" style={{color:'#fb923c'}}>{columns.en_proceso.length}</span>
+          <div className="dash-stat dash-stat--orange">
+            <span className="dash-stat__n">{columns.en_proceso.length}</span>
+            <span className="dash-stat__l">En Proceso</span>
           </div>
-          <div className="stat-card">
-            <span className="stat-card__label">Listas para Envío</span>
-            <span className="stat-card__value" style={{color:'#4ade80'}}>{columns.lista.length}</span>
+          <div className="dash-stat dash-stat--green">
+            <span className="dash-stat__n">{columns.lista.length}</span>
+            <span className="dash-stat__l">Listas</span>
+          </div>
+          <div className="dash-stat">
+            <span className="dash-stat__n" style={{ color: 'var(--text-muted)' }}>{orders.length}</span>
+            <span className="dash-stat__l">Total activas</span>
           </div>
         </div>
 
         {loading ? (
-          <div className="loading-screen" style={{height:'200px'}}>
+          <div className="loading-screen" style={{ height: '300px' }}>
             <div className="loading-spinner" />
           </div>
         ) : (
           <div className="kanban-board">
-            {/* Columna: En Cola */}
-            <div className="kanban-col">
-              <div className="kanban-col__header kanban-col__header--queue">
-                <span>En Cola</span>
-                <span className="kanban-col__count">{columns.abierta.length}</span>
-              </div>
-              <div className="kanban-col__body">
-                {columns.abierta.length === 0
-                  ? <p className="empty-state">Sin órdenes</p>
-                  : columns.abierta.map(o => (
-                      <OrderCard
+            {[
+              { key: 'abierta',    label: 'En Cola',         cls: 'queue',   list: columns.abierta    },
+              { key: 'en_proceso', label: 'En Proceso',       cls: 'process', list: columns.en_proceso },
+              { key: 'lista',      label: 'Lista para Envío', cls: 'ready',   list: columns.lista      },
+            ].map(col => (
+              <div key={col.key} className="kanban-col">
+                <div className={`kanban-col__header kanban-col__header--${col.cls}`}>
+                  <span>{col.label}</span>
+                  <span className="kanban-col__count">{col.list.length}</span>
+                </div>
+                <div className="kanban-col__body">
+                  {col.list.length === 0
+                    ? <p className="empty-state" style={{ fontSize: '0.82rem' }}>Sin órdenes</p>
+                    : col.list.map(o => (
+                      <ProductionCard
                         key={o.id}
                         order={o}
-                        userRole={profile?.role}
-                        onStatusChange={handleStatusChange}
-                        onEdit={null}
-                        context="production"
-                        allowedRoles={{ edit: ['admin', 'owner'] }}
                       />
                     ))
-                }
+                  }
+                </div>
               </div>
-            </div>
-
-            {/* Columna: En Proceso */}
-            <div className="kanban-col">
-              <div className="kanban-col__header kanban-col__header--process">
-                <span>En Proceso</span>
-                <span className="kanban-col__count">{columns.en_proceso.length}</span>
-              </div>
-              <div className="kanban-col__body">
-                {columns.en_proceso.length === 0
-                  ? <p className="empty-state">Sin órdenes</p>
-                  : columns.en_proceso.map(o => (
-                      <OrderCard
-                        key={o.id}
-                        order={o}
-                        userRole={profile?.role}
-                        onStatusChange={handleStatusChange}
-                        onEdit={null}
-                        context="production"
-                        allowedRoles={{ edit: ['admin', 'owner'] }}
-                      />
-                    ))
-                }
-              </div>
-            </div>
-
-            {/* Columna: Lista */}
-            <div className="kanban-col">
-              <div className="kanban-col__header kanban-col__header--ready">
-                <span>Lista para Envío</span>
-                <span className="kanban-col__count">{columns.lista.length}</span>
-              </div>
-              <div className="kanban-col__body">
-                {columns.lista.length === 0
-                  ? <p className="empty-state">Sin órdenes</p>
-                  : columns.lista.map(o => (
-                      <OrderCard
-                        key={o.id}
-                        order={o}
-                        userRole={profile?.role}
-                        onStatusChange={handleStatusChange}
-                        onEdit={null}
-                        context="production"
-                        allowedRoles={{ edit: ['admin', 'owner'] }}
-                      />
-                    ))
-                }
-              </div>
-            </div>
+            ))}
           </div>
         )}
       </main>
 
       <style>{`
+        .dash-main {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          padding: 0.75rem 1rem;
+          max-width: 100%;
+          height: calc(100vh - 70px);
+          overflow: hidden;
+        }
+
+        /* Stats */
+        .dash-stats {
+          display: flex;
+          gap: 0.75rem;
+          margin-bottom: 0.75rem;
+          flex-shrink: 0;
+        }
+        .dash-stat {
+          background: var(--bg-card);
+          border: 1px solid var(--border);
+          border-radius: var(--radius);
+          padding: 0.4rem 0.85rem;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+        .dash-stat__n {
+          font-family: var(--font-mono);
+          font-size: 1.3rem;
+          font-weight: 800;
+          line-height: 1;
+        }
+        .dash-stat__l {
+          font-size: 0.68rem;
+          color: var(--text-muted);
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+          font-weight: 600;
+        }
+        .dash-stat--blue   .dash-stat__n { color: #60a5fa; }
+        .dash-stat--orange .dash-stat__n { color: #fb923c; }
+        .dash-stat--green  .dash-stat__n { color: #4ade80; }
+
+        /* Kanban */
         .kanban-board {
           display: grid;
           grid-template-columns: repeat(3, 1fr);
-          gap: 1rem;
-          align-items: start;
+          gap: 0.75rem;
+          flex: 1;
+          min-height: 0;
         }
         @media (max-width: 900px) {
           .kanban-board { grid-template-columns: 1fr; }
+          .dash-main    { height: auto; overflow: visible; }
         }
         .kanban-col {
           background: var(--bg-card);
           border: 1px solid var(--border);
           border-radius: var(--radius);
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
           overflow: hidden;
         }
         .kanban-col__header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 0.75rem 1rem;
+          padding: 0.55rem 0.85rem;
           font-family: var(--font-mono);
-          font-size: 0.8rem;
+          font-size: 0.72rem;
           font-weight: 700;
           text-transform: uppercase;
           letter-spacing: 0.08em;
           border-bottom: 2px solid;
+          flex-shrink: 0;
         }
         .kanban-col__header--queue   { border-color: #60a5fa; color: #60a5fa; }
         .kanban-col__header--process { border-color: #fb923c; color: #fb923c; }
         .kanban-col__header--ready   { border-color: #4ade80; color: #4ade80; }
         .kanban-col__count {
           background: rgba(255,255,255,0.08);
-          border-radius: 12px;
-          padding: 2px 8px;
-          font-size: 0.75rem;
+          border-radius: 10px;
+          padding: 1px 7px;
+          font-size: 0.7rem;
         }
         .kanban-col__body {
-          padding: 0.75rem;
+          padding: 0.4rem;
           display: flex;
           flex-direction: column;
-          gap: 0.75rem;
-          min-height: 100px;
+          gap: 0.3rem;
+          overflow-y: auto;
+          flex: 1;
+        }
+        .kanban-col__body::-webkit-scrollbar       { width: 3px; }
+        .kanban-col__body::-webkit-scrollbar-track  { background: transparent; }
+        .kanban-col__body::-webkit-scrollbar-thumb  { background: var(--border); border-radius: 2px; }
+
+        /* Tarjeta compacta */
+        .pcard {
+          background: var(--bg);
+          border: 1px solid var(--border);
+          border-left: 3px solid transparent;
+          border-radius: 5px;
+          padding: 0.35rem 0.55rem;
+          display: flex;
+          flex-direction: column;
+          gap: 0.18rem;
+        }
+        .pcard--urgente     { border-left-color: #ef4444; }
+        .pcard--prioritaria { border-left-color: #f59e0b; }
+        .pcard--normal      { border-left-color: transparent; }
+
+        /* Fila única: #Orden · Cliente */
+        .pcard__row {
+          display: flex;
+          align-items: center;
+          gap: 0.35rem;
+          min-width: 0;
+        }
+        .pcard__num {
+          font-family: var(--font-mono);
+          font-size: 0.78rem;
+          font-weight: 700;
+          color: var(--accent);
+          flex-shrink: 0;
+        }
+        .pcard__sep {
+          color: var(--border);
+          font-size: 0.75rem;
+          flex-shrink: 0;
+        }
+        .pcard__client {
+          font-size: 0.8rem;
+          font-weight: 600;
+          color: var(--text);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          flex: 1;
+          margin: 0;
+        }
+        .pcard__delivery {
+          font-size: 0.7rem;
+          flex-shrink: 0;
         }
       `}</style>
     </div>

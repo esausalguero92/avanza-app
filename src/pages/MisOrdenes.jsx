@@ -3,13 +3,50 @@ import { supabase } from '../lib/supabaseClient'
 import Navbar from '../components/Navbar'
 import OrderCard from '../components/OrderCard'
 
-const EDITABLE_STATUSES = ['abierta', 'en_proceso', 'lista', 'en_envio']
+const DATE_FILTERS = [
+  { value: 'hoy',    label: 'Hoy' },
+  { value: 'ayer',   label: 'Ayer' },
+  { value: 'semana', label: '7 días' },
+  { value: 'mes',    label: '30 días' },
+  { value: 'todo',   label: 'Todo' },
+]
+
+function getDateRange(filter) {
+  const now   = new Date()
+  const start = new Date()
+  if (filter === 'hoy') {
+    start.setHours(0, 0, 0, 0)
+  } else if (filter === 'ayer') {
+    start.setDate(now.getDate() - 1)
+    start.setHours(0, 0, 0, 0)
+    const end = new Date(start)
+    end.setHours(23, 59, 59, 999)
+    return { start: start.toISOString(), end: end.toISOString() }
+  } else if (filter === 'semana') {
+    start.setDate(now.getDate() - 7)
+    start.setHours(0, 0, 0, 0)
+  } else if (filter === 'mes') {
+    start.setDate(now.getDate() - 30)
+    start.setHours(0, 0, 0, 0)
+  } else {
+    return null // sin filtro de fecha
+  }
+  return { start: start.toISOString(), end: null }
+}
+
+const PAYMENT_METHODS = [
+  { value: 'efectivo',      label: 'Efectivo' },
+  { value: 'pos',           label: 'POS / Tarjeta' },
+  { value: 'transferencia', label: 'Transferencia' },
+  { value: 'neolink',       label: 'Neolink' },
+]
 
 export default function MisOrdenes({ profile }) {
   const [orders, setOrders]         = useState([])
   const [loading, setLoading]       = useState(true)
-  const [search, setSearch]         = useState('')
+  const [dateFilter, setDateFilter]  = useState('hoy')
   const [statusFilter, setStatusFilter] = useState('')
+  const [showClosed, setShowClosed] = useState(false)
 
   // Modal edición
   const [editOrder, setEditOrder]   = useState(null)
@@ -22,6 +59,13 @@ export default function MisOrdenes({ profile }) {
   const [savedOrder, setSavedOrder]   = useState(null)
   const [editError, setEditError]   = useState('')
 
+  // Modal pago parcial
+  const [paymentOrder, setPaymentOrder]   = useState(null)
+  const [paymentAmount, setPaymentAmount] = useState('')
+  const [paymentMethod, setPaymentMethod] = useState('efectivo')
+  const [paymentSaving, setPaymentSaving] = useState(false)
+  const [paymentError, setPaymentError]   = useState('')
+
   useEffect(() => {
     fetchOrders()
     fetchProducts()
@@ -30,13 +74,25 @@ export default function MisOrdenes({ profile }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, fetchOrders)
       .subscribe()
     return () => supabase.removeChannel(channel)
-  }, [])
+  }, [showClosed, dateFilter])
 
   async function fetchOrders() {
-    const { data } = await supabase
+    let query = supabase
       .from('orders')
       .select('*, order_items(*)')
       .order('created_at', { ascending: false })
+
+    if (!showClosed) {
+      query = query.neq('status', 'cerrada')
+    }
+
+    const range = getDateRange(dateFilter)
+    if (range) {
+      query = query.gte('created_at', range.start)
+      if (range.end) query = query.lte('created_at', range.end)
+    }
+
+    const { data } = await query
     setOrders(data || [])
     setLoading(false)
   }
@@ -46,8 +102,113 @@ export default function MisOrdenes({ profile }) {
     setProducts(data || [])
   }
 
-  async function handleStatusChange(orderId, newStatus) {
+  // ── Notificar a n8n para que actualice el mensaje de Telegram ──
+  async function notifyTelegramPayment(order, creditAmount) {
+    if (!order?.telegram_message_id) return // orden sin mensaje en grupo
+    try {
+      await fetch('https://horizon-n8n.8qkrxr.easypanel.host/webhook/avanza-pago-web', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_id:          order.id,
+          order_number:      order.order_number,
+          client_name:       order.client_name,
+          total_amount:      order.total_amount,
+          credit_amount:     creditAmount,
+          telegram_message_id: order.telegram_message_id,
+          telegram_chat_id:    order.telegram_chat_id,
+        }),
+      })
+    } catch (e) {
+      console.warn('No se pudo notificar a Telegram:', e)
+    }
+  }
+
+  // ── Manejo de cambios de estado ─────────────────────────────
+  async function handleStatusChange(orderId, newStatus, order) {
+    // Pago parcial → abrir modal (parcial)
+    if (newStatus === 'pago_parcial') {
+      setPaymentOrder({ ...order, _mode: 'partial' })
+      setPaymentAmount('')
+      setPaymentMethod('efectivo')
+      setPaymentError('')
+      return
+    }
+
+    // Pagado → abrir modal para método, cierra con credit_amount = 0
+    if (newStatus === 'entregado_pagado') {
+      setPaymentOrder({ ...order, _mode: 'full' })
+      setPaymentAmount(String(order?.total_amount || ''))
+      setPaymentMethod('efectivo')
+      setPaymentError('')
+      return
+    }
+
+    // Crédito → cierra directamente, credit_amount = total (sin pago)
+    if (newStatus === 'entregado_pendiente') {
+      const total = parseFloat(order?.total_amount || 0)
+      await supabase.from('orders').update({
+        status:        'cerrada',
+        credit_amount: total,
+      }).eq('id', orderId)
+      await notifyTelegramPayment(order, total)
+      fetchOrders()
+      return
+    }
+
+    // Cualquier otro cambio de estado
     await supabase.from('orders').update({ status: newStatus }).eq('id', orderId)
+    fetchOrders()
+  }
+
+  // ── Confirmar pago (completo o parcial) ─────────────────────
+  async function handlePaymentConfirm() {
+    const amount = parseFloat(paymentAmount)
+    const total  = parseFloat(paymentOrder?.total_amount || 0)
+    const isFull = paymentOrder?._mode === 'full'
+
+    if (!amount || amount <= 0) {
+      setPaymentError('Ingresa un monto válido.')
+      return
+    }
+    if (!isFull && amount >= total) {
+      setPaymentError(`El monto debe ser menor al total (Q${total.toFixed(2)}). Para pago completo usa "Pagado".`)
+      return
+    }
+
+    setPaymentSaving(true)
+    setPaymentError('')
+
+    // 1. Insertar registro en payments
+    const { error: payErr } = await supabase.from('payments').insert({
+      order_id:       paymentOrder.id,
+      amount:         isFull ? total : amount,
+      payment_method: paymentMethod,
+      created_by:     profile?.id || null,
+    })
+
+    if (payErr) {
+      setPaymentError('Error al registrar pago: ' + payErr.message)
+      setPaymentSaving(false)
+      return
+    }
+
+    // 2. Cerrar orden con el crédito que corresponde
+    const credit = isFull ? 0 : parseFloat((total - amount).toFixed(2))
+    const { error: orderErr } = await supabase.from('orders').update({
+      status:        'cerrada',
+      credit_amount: credit,
+    }).eq('id', paymentOrder.id)
+
+    setPaymentSaving(false)
+
+    if (orderErr) {
+      setPaymentError('Error al actualizar orden: ' + orderErr.message)
+      return
+    }
+
+    await notifyTelegramPayment(paymentOrder, credit)
+    setPaymentOrder(null)
     fetchOrders()
   }
 
@@ -127,7 +288,7 @@ export default function MisOrdenes({ profile }) {
         product_id:   item.product_id || null,
         product_name: item.product_name,
         unit_price:   parseFloat(item.unit_price),
-        quantity:     parseInt(item.quantity, 10),  // ← entero
+        quantity:     parseInt(item.quantity, 10),
         notes:        item.notes || null,
       }))
     )
@@ -148,11 +309,7 @@ export default function MisOrdenes({ profile }) {
 
   // ── Filtros ─────────────────────────────────────────────────
   const filtered = orders.filter(o => {
-    const matchSearch = !search ||
-      o.client_name.toLowerCase().includes(search.toLowerCase()) ||
-      String(o.order_number).includes(search)
-    const matchStatus = !statusFilter || o.status === statusFilter
-    return matchSearch && matchStatus
+    return !statusFilter || o.status === statusFilter
   })
 
   const stats = {
@@ -198,11 +355,24 @@ export default function MisOrdenes({ profile }) {
 
         {/* Filtros */}
         <div className="filters-row">
-          <input className="form-input" type="text"
-            placeholder="Buscar cliente o # de orden..."
-            value={search} onChange={e => setSearch(e.target.value)} />
+          {/* Selector de período */}
+          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+            {DATE_FILTERS.map(f => (
+              <button
+                key={f.value}
+                type="button"
+                className={`btn ${dateFilter === f.value ? 'btn--primary' : 'btn--ghost'}`}
+                style={{ fontSize: '0.82rem', padding: '0.35rem 0.9rem' }}
+                onClick={() => { setDateFilter(f.value); setStatusFilter('') }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
           <select className="form-select" value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value)}>
+            onChange={e => setStatusFilter(e.target.value)}
+            style={{ maxWidth: '200px' }}>
             <option value="">Todos los estados</option>
             <option value="abierta">Abierta</option>
             <option value="en_proceso">En Proceso</option>
@@ -210,8 +380,16 @@ export default function MisOrdenes({ profile }) {
             <option value="en_envio">En Envío</option>
             <option value="entregado_pagado">Entregado / Pagado</option>
             <option value="entregado_pendiente">Entregado / Pendiente</option>
-            <option value="cerrada">Cerrada</option>
           </select>
+
+          <button
+            type="button"
+            className={`btn ${showClosed ? 'btn--primary' : 'btn--ghost'}`}
+            style={{ whiteSpace: 'nowrap', fontSize: '0.82rem' }}
+            onClick={() => { setShowClosed(v => !v); setStatusFilter('') }}
+          >
+            {showClosed ? '🔒 Ocultar cerradas' : '🗂 Ver cerradas'}
+          </button>
         </div>
 
         {/* Grid de órdenes */}
@@ -238,6 +416,104 @@ export default function MisOrdenes({ profile }) {
           </div>
         )}
       </main>
+
+      {/* ── MODAL PAGO PARCIAL ───────────────────────────────────── */}
+      {paymentOrder && (
+        <div className="modal-overlay" onClick={() => !paymentSaving && setPaymentOrder(null)}>
+          <div className="modal" style={{ maxWidth: '420px', width: '95vw' }}
+            onClick={e => e.stopPropagation()}>
+
+            <div className="modal__header">
+              <h2 className="modal__title">
+                {paymentOrder?._mode === 'full' ? 'Pago Completo' : 'Pago Parcial'} — Orden #{paymentOrder.order_number}
+              </h2>
+              <button className="modal__close" onClick={() => setPaymentOrder(null)}
+                disabled={paymentSaving}>✕</button>
+            </div>
+
+            <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+
+              {/* Info de la orden */}
+              <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '7px', padding: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <p style={{ margin: 0, fontWeight: 600, color: 'var(--text)' }}>{paymentOrder.client_name}</p>
+                  <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                    {paymentOrder.order_items?.map(i => i.product_name).join(', ')}
+                  </p>
+                </div>
+                <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: '1.1rem', color: 'var(--accent)' }}>
+                  Q{parseFloat(paymentOrder.total_amount || 0).toFixed(2)}
+                </span>
+              </div>
+
+              {/* Monto */}
+              <div className="form-group">
+                <label className="form-label">
+                  {paymentOrder?._mode === 'full' ? 'Monto recibido (Q)' : 'Monto recibido (Q) *'}
+                </label>
+                <input
+                  className="form-input"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  placeholder={`Q${parseFloat(paymentOrder.total_amount || 0).toFixed(2)}`}
+                  value={paymentAmount}
+                  onChange={e => setPaymentAmount(e.target.value)}
+                  readOnly={paymentOrder?._mode === 'full'}
+                  style={paymentOrder?._mode === 'full' ? { opacity: 0.7 } : {}}
+                  autoFocus={paymentOrder?._mode !== 'full'}
+                />
+                {paymentOrder?._mode !== 'full' && paymentAmount && parseFloat(paymentAmount) > 0 && parseFloat(paymentAmount) < parseFloat(paymentOrder.total_amount || 0) && (
+                  <p style={{ margin: '0.4rem 0 0', fontSize: '0.8rem', color: '#fbbf24' }}>
+                    Crédito pendiente: Q{(parseFloat(paymentOrder.total_amount) - parseFloat(paymentAmount)).toFixed(2)}
+                  </p>
+                )}
+              </div>
+
+              {/* Método de pago */}
+              <div className="form-group">
+                <label className="form-label">Método de pago</label>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  {PAYMENT_METHODS.map(m => (
+                    <button
+                      key={m.value}
+                      type="button"
+                      className={`btn ${paymentMethod === m.value ? 'btn--primary' : 'btn--ghost'}`}
+                      style={{ fontSize: '0.82rem', padding: '0.35rem 0.85rem' }}
+                      onClick={() => setPaymentMethod(m.value)}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {paymentError && (
+                <p style={{ margin: 0, color: '#ef4444', fontSize: '0.85rem' }}>{paymentError}</p>
+              )}
+
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={() => setPaymentOrder(null)}
+                  disabled={paymentSaving}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={handlePaymentConfirm}
+                  disabled={paymentSaving || !paymentAmount}
+                >
+                  {paymentSaving ? 'Guardando...' : 'Confirmar Pago'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── MODAL DE EDICIÓN ─────────────────────────────────── */}
       {editOrder && (

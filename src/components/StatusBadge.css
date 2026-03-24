@@ -8,10 +8,10 @@
   text-transform: uppercase;
 }
 
-.status--abierta          { background: #1e3a5f; color: #60a5fa; }
-.status--en-proceso       { background: #3b1f00; color: #fb923c; }
-.status--lista            { background: #14532d; color: #4ade80; }
-.status--en-envio         { background: #312e81; color: #a5b4fc; }
-.status--pagado           { background: #134e4a; color: #2dd4bf; }
-.status--pendiente        { background: #451a03; color: #fbbf24; }
-.status--cerrada          { background: #1f2937; color: #9ca3af; }
+.status--abierta    { background: #dbeafe; color: #1d4ed8; }
+.status--en-proceso { background: #ffedd5; color: #c2410c; }
+.status--lista      { background: #dcfce7; color: #15803d; }
+.status--en-envio   { background: #ede9fe; color: #6d28d9; }
+.status--pagado     { background: #ccfbf1; color: #0f766e; }
+.status--pendiente  { background: #fef9c3; color: #a16207; }
+.status--cerrada    { background: #f3f4f6; color: #6b7280; }

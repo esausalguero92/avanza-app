@@ -1,4 +1,4 @@
-/* ── HAMBURGUESA (solo mobile) ───────────────────────────────── */
+/* ── HAMBURGUESA ───────────────────────────────────────────── */
 .hamburger {
   display: none;
   flex-direction: column;
@@ -43,6 +43,7 @@
   gap: 0;
   overflow-y: auto;
   animation: slideIn 0.2s ease;
+  box-shadow: -4px 0 24px rgba(0,0,0,0.1);
 }
 
 @keyframes slideIn {
@@ -53,7 +54,7 @@
 .mobile-menu__overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.6);
+  background: rgba(0,0,0,0.3);
   z-index: 199;
 }
 
@@ -102,7 +103,7 @@
 
 .mobile-menu__link:hover,
 .mobile-menu__link.active {
-  background: var(--bg-input);
+  background: var(--accent-dim);
   color: var(--accent);
 }
 

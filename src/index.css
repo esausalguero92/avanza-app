@@ -1,20 +1,30 @@
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
 
 :root {
-  --bg:        #0a0a0a;
-  --bg-card:   #161616;
-  --bg-input:  #1a1a1a;
-  --border:    #2a2a2a;
-  --border-hover: #f59e0b;
-  --accent:    #f59e0b;
-  --accent-dim: #92400e;
-  --text:      #f5f0eb;
-  --text-muted: #6b7280;
+  /* ── Fondos ─────────────────────────────────────────── */
+  --bg:             #fafaf8;   /* crema suave — fondo principal */
+  --bg-card:        #ffffff;   /* blanco puro — tarjetas */
+  --bg-input:       #f4f4f2;   /* input fields */
+
+  /* ── Bordes ─────────────────────────────────────────── */
+  --border:         #e2e2dc;
+  --border-hover:   #2563eb;
+
+  /* ── Acento azul corporativo ─────────────────────────── */
+  --accent:         #2563eb;   /* azul principal */
+  --accent-dim:     #dbeafe;   /* azul suave para fondos */
+
+  /* ── Texto ───────────────────────────────────────────── */
+  --text:           #1a1a1a;
+  --text-muted:     #6b7280;
   --text-secondary: #9ca3af;
-  --danger:    #ef4444;
-  --success:   #22c55e;
-  --info:      #60a5fa;
-  --radius:    8px;
+
+  /* ── Estados ─────────────────────────────────────────── */
+  --danger:         #dc2626;
+  --success:        #16a34a;
+  --info:           #2563eb;
+
+  --radius: 8px;
   --font-mono: 'IBM Plex Mono', monospace;
   --font-sans: 'IBM Plex Sans', sans-serif;
 }
@@ -47,6 +57,7 @@ html, body, #root {
   position: sticky;
   top: 0;
   z-index: 100;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
 }
 
 .page__logo {
@@ -120,14 +131,14 @@ html, body, #root {
   letter-spacing: 0.02em;
 }
 
-.btn:hover  { opacity: 0.85; }
-.btn:active { transform: scale(0.97); }
+.btn:hover   { opacity: 0.85; }
+.btn:active  { transform: scale(0.97); }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-.btn--primary   { background: var(--accent); color: #000; }
-.btn--secondary { background: #2a2a2a; color: var(--text); }
-.btn--success   { background: #14532d; color: var(--success); }
-.btn--danger    { background: #450a0a; color: var(--danger); }
+.btn--primary   { background: var(--accent); color: #fff; }
+.btn--secondary { background: #e9e9e5; color: var(--text); }
+.btn--success   { background: #dcfce7; color: #15803d; }
+.btn--danger    { background: #fee2e2; color: #dc2626; }
 .btn--ghost     { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
 .btn--lg        { padding: 0.75rem 1.5rem; font-size: 0.95rem; }
 .btn--full      { width: 100%; }
@@ -166,9 +177,10 @@ html, body, #root {
 .form-textarea:focus {
   outline: none;
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
 }
 
-.form-select option { background: var(--bg-card); }
+.form-select option { background: var(--bg-card); color: var(--text); }
 .form-textarea { resize: vertical; min-height: 80px; }
 
 /* ─── GRIDS ─── */
@@ -201,7 +213,7 @@ html, body, #root {
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ─── MENSAJES ─── */
-.error-text  { color: var(--danger); font-size: 0.9rem; }
+.error-text   { color: var(--danger);  font-size: 0.9rem; }
 .success-text { color: var(--success); font-size: 0.9rem; }
 .empty-state {
   text-align: center;
@@ -227,6 +239,7 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
 
 .stat-card__label {
@@ -277,100 +290,38 @@ html, body, #root {
 .nav-link:hover,
 .nav-link.active {
   color: var(--accent);
-  background: rgba(245, 158, 11, 0.08);
+  background: var(--accent-dim);
 }
 
 /* ══════════════════════════════════════════════════════════════
    RESPONSIVE — MOBILE
    ══════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
+  .page__content    { padding: 1rem; }
+  .page__title      { font-size: 1.15rem; margin-bottom: 1rem; }
+  .page__header     { padding: 0.5rem 1rem; }
+  .page__logo-img   { height: 52px; }
 
-  /* Layout general */
-  .page__content {
-    padding: 1rem;
-  }
+  .stats-row        { grid-template-columns: repeat(2, 1fr); gap: 0.6rem; }
+  .stat-card        { padding: 0.75rem; }
+  .stat-card__value { font-size: 1.4rem; }
 
-  .page__title {
-    font-size: 1.15rem;
-    margin-bottom: 1rem;
-  }
+  .form-row         { flex-direction: column; gap: 0.75rem; }
+  .form-section     { padding: 1rem; }
 
-  /* Header más compacto */
-  .page__header {
-    padding: 0.5rem 1rem;
-  }
+  .form-actions              { flex-direction: column-reverse; gap: 0.6rem; }
+  .form-actions .btn         { width: 100%; justify-content: center; }
 
-  .page__logo-img {
-    height: 52px;
-  }
+  .modal { width: 95vw; max-height: 90vh; overflow-y: auto; }
 
-  /* Stats en columna */
-  .stats-row {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.6rem;
-  }
+  .items-table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
-  .stat-card {
-    padding: 0.75rem;
-  }
-
-  .stat-card__value {
-    font-size: 1.4rem;
-  }
-
-  /* Formularios */
-  .form-row {
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-
-  .form-section {
-    padding: 1rem;
-  }
-
-  /* Botones de acción apilados */
-  .form-actions {
-    flex-direction: column-reverse;
-    gap: 0.6rem;
-  }
-
-  .form-actions .btn {
-    width: 100%;
-    justify-content: center;
-  }
-
-  /* Modales full-width */
-  .modal {
-    width: 95vw;
-    max-height: 90vh;
-    overflow-y: auto;
-  }
-
-  /* Tabla de ítems scroll horizontal */
-  .items-table-wrapper {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  /* Prioridad y pago — columna */
   .priority-options,
-  .payment-type-selector {
-    flex-direction: column;
-    gap: 0.4rem;
-  }
-
-  .priority-option {
-    width: 100%;
-    justify-content: flex-start;
-  }
+  .payment-type-selector { flex-direction: column; gap: 0.4rem; }
+  .priority-option { width: 100%; justify-content: flex-start; }
 }
 
 @media (max-width: 480px) {
-  .stats-row {
-    grid-template-columns: 1fr;
-  }
-
-  .page__title {
-    font-size: 1rem;
-  }
+  .stats-row    { grid-template-columns: 1fr; }
+  .page__title  { font-size: 1rem; }
 }

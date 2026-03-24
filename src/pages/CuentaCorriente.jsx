@@ -142,8 +142,9 @@ export default function CuentaCorriente({ profile }) {
         created_by:     profile.id,
       })
 
-      // Actualizar crédito en la orden (ya está cerrada, solo actualizar credit_amount)
+      // Actualizar crédito en la orden
       const updates = { credit_amount: newCredit }
+      if (newCredit === 0) updates.status = 'cerrada'
       await supabase.from('orders').update(updates).eq('id', ord.id)
     }
 
@@ -180,7 +181,7 @@ export default function CuentaCorriente({ profile }) {
           </div>
           <div className="stat-card">
             <span className="stat-card__label">Deuda Total</span>
-            <span className="stat-card__value" style={{ color: '#fbbf24' }}>Q{totalDeuda.toFixed(2)}</span>
+            <span className="stat-card__value" style={{ color: '#ef4444' }}>Q{totalDeuda.toFixed(2)}</span>
           </div>
           <div className="stat-card">
             <span className="stat-card__label">Órdenes Pendientes</span>
