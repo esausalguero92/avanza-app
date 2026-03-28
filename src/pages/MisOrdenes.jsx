@@ -47,6 +47,7 @@ export default function MisOrdenes({ profile }) {
   const [dateFilter, setDateFilter]  = useState('hoy')
   const [statusFilter, setStatusFilter] = useState('')
   const [showClosed, setShowClosed] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Modal edición
   const [editOrder, setEditOrder]   = useState(null)
@@ -309,7 +310,14 @@ export default function MisOrdenes({ profile }) {
 
   // ── Filtros ─────────────────────────────────────────────────
   const filtered = orders.filter(o => {
-    return !statusFilter || o.status === statusFilter
+    if (statusFilter && o.status !== statusFilter) return false
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase()
+      const matchesName   = o.client_name?.toLowerCase().includes(q)
+      const matchesNumber = String(o.order_number).includes(q)
+      if (!matchesName && !matchesNumber) return false
+    }
+    return true
   })
 
   const stats = {
@@ -351,6 +359,18 @@ export default function MisOrdenes({ profile }) {
             <span className="stat-card__label">Crédito</span>
             <span className="stat-card__value" style={{color:'#fbbf24'}}>{stats.credito}</span>
           </div>
+        </div>
+
+        {/* Búsqueda */}
+        <div style={{ marginBottom: '0.5rem' }}>
+          <input
+            className="form-input"
+            type="search"
+            placeholder="🔍 Buscar por cliente o # de orden..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            style={{ maxWidth: '380px', width: '100%' }}
+          />
         </div>
 
         {/* Filtros */}
@@ -400,7 +420,11 @@ export default function MisOrdenes({ profile }) {
         ) : (
           <div className="orders-grid">
             {filtered.length === 0
-              ? <p className="empty-state">No se encontraron órdenes.</p>
+              ? <p className="empty-state">
+                  {searchQuery.trim()
+                    ? `Sin resultados para "${searchQuery.trim()}".`
+                    : 'No se encontraron órdenes.'}
+                </p>
               : filtered.map(order => (
                   <OrderCard
                     key={order.id}

@@ -5,6 +5,12 @@ import Navbar from '../components/Navbar'
 import ClientAutocomplete from '../components/ClientAutocomplete'
 import './NuevaOrden.css'
 
+const PAYMENT_METHODS = [
+  { value: 'efectivo',      label: '💵 Efectivo' },
+  { value: 'pos',           label: '💳 POS / Tarjeta' },
+  { value: 'transferencia', label: '📲 Transferencia' },
+]
+
 export default function NuevaOrden({ profile }) {
   const navigate = useNavigate()
   const [products, setProducts] = useState([])
@@ -21,10 +27,15 @@ export default function NuevaOrden({ profile }) {
   const [clientNit, setClientNit]           = useState('')
   const [clientAddress, setClientAddress]   = useState('')
 
+  // Dirección alternativa para esta entrega (no modifica datos del cliente)
+  const [useAltAddress, setUseAltAddress]           = useState(false)
+  const [altDeliveryAddress, setAltDeliveryAddress] = useState('')
+
   const [createdOrder, setCreatedOrder] = useState(null)
 
   // Orden
   const [notes, setNotes]                       = useState('')
+  const [deliveryNotes, setDeliveryNotes]       = useState('')
   const [isReposition, setIsReposition]         = useState(false)
   const [parentOrderId, setParentOrderId]       = useState('')
   const [repositionReason, setRepositionReason] = useState('error_impresion')
@@ -33,6 +44,11 @@ export default function NuevaOrden({ profile }) {
   const [items, setItems] = useState([
     { product_id: '', product_name: '', unit_price: '', quantity: 1, notes: '' }
   ])
+
+  // Pago inicial
+  const [hasInitialPayment, setHasInitialPayment]       = useState(false)
+  const [initialPaymentAmount, setInitialPaymentAmount] = useState('')
+  const [initialPaymentMethod, setInitialPaymentMethod] = useState('efectivo')
 
   useEffect(() => { fetchProducts() }, [])
 
@@ -99,6 +115,19 @@ export default function NuevaOrden({ profile }) {
       setLoading(false); return
     }
 
+    const parsedInitialPayment = parseFloat(initialPaymentAmount) || 0
+    const total = calcTotal()
+    if (hasInitialPayment && !isReposition) {
+      if (parsedInitialPayment <= 0) {
+        setError('Ingresa un monto válido para el pago inicial.')
+        setLoading(false); return
+      }
+      if (parsedInitialPayment > total) {
+        setError('El pago inicial no puede ser mayor al total.')
+        setLoading(false); return
+      }
+    }
+
     // 1. Resolver client_id
     let clientId = selectedClient?.id || null
 
@@ -122,7 +151,7 @@ export default function NuevaOrden({ profile }) {
       clientId = newClient.id
     }
 
-    // 1.5 Si es reposición, buscar el UUID de la orden por número
+    // 1.5 Resolver parent_order_id si es reposición
     let resolvedParentId = null
     if (isReposition && parentOrderId.trim()) {
       const orderNum = parseInt(parentOrderId.trim(), 10)
@@ -131,10 +160,7 @@ export default function NuevaOrden({ profile }) {
         setLoading(false); return
       }
       const { data: parentOrder } = await supabase
-        .from('orders')
-        .select('id')
-        .eq('order_number', orderNum)
-        .single()
+        .from('orders').select('id').eq('order_number', orderNum).single()
       if (!parentOrder) {
         setError('No se encontró la orden #' + orderNum + '. Verifica el número.')
         setLoading(false); return
@@ -142,13 +168,20 @@ export default function NuevaOrden({ profile }) {
       resolvedParentId = parentOrder.id
     }
 
+    // Dirección de entrega (independiente del tipo de entrega)
+    const deliveryAddress = (useAltAddress && altDeliveryAddress.trim())
+      ? altDeliveryAddress.trim()
+      : null
+
     // 2. Crear orden
     const { data: order, error: orderErr } = await supabase
       .from('orders')
       .insert({
         client_name:       clientName,
         client_id:         clientId,
-        notes:             notes.trim() || null,
+        notes:             notes.trim()        || null,
+        delivery_notes:    deliveryNotes.trim() || null,
+        delivery_address:  deliveryAddress,
         status:            'abierta',
         priority:          priority,
         created_by:        profile.id,
@@ -164,7 +197,7 @@ export default function NuevaOrden({ profile }) {
       setLoading(false); return
     }
 
-    // 3. Insertar ítems — reposiciones van con precio 0
+    // 3. Insertar ítems
     const { error: itemsErr } = await supabase
       .from('order_items')
       .insert(items.map(item => ({
@@ -181,140 +214,130 @@ export default function NuevaOrden({ profile }) {
       setLoading(false); return
     }
 
-    // 4. Ajustar crédito
-    // Reposiciones: todo en cero
-    // Órdenes normales: credit_amount = total (se cobra al entregar vía Telegram)
+    // 4. Calcular montos y registrar pago inicial
     if (isReposition) {
       await supabase.from('orders')
         .update({ total_amount: 0, credit_amount: 0, initial_payment: 0 })
         .eq('id', order.id)
     } else {
-      const total = order.total_amount || calcTotal()
-      await supabase.from('orders')
-        .update({ credit_amount: total, initial_payment: 0 })
-        .eq('id', order.id)
+      const orderTotal = order.total_amount || total
+      const ipAmount   = hasInitialPayment ? parsedInitialPayment : 0
+      const credit     = orderTotal - ipAmount
+
+      await supabase.from('orders').update({
+        credit_amount:          credit,
+        initial_payment:        ipAmount,
+        initial_payment_method: hasInitialPayment ? initialPaymentMethod : null,
+      }).eq('id', order.id)
+
+      if (hasInitialPayment && ipAmount > 0) {
+        await supabase.from('payments').insert({
+          order_id:       order.id,
+          amount:         ipAmount,
+          payment_method: initialPaymentMethod,
+          notes:          'Pago inicial al crear orden',
+          created_by:     profile.id,
+        })
+      }
     }
 
     // 5. Fetch orden completa para el ticket
     const { data: fullOrder } = await supabase
-      .from('orders')
-      .select('*, order_items(*)')
-      .eq('id', order.id)
-      .single()
+      .from('orders').select('*, order_items(*)').eq('id', order.id).single()
 
-    setCreatedOrder({ ...fullOrder, clientData: selectedClient, createdByName: profile.full_name })
+    setCreatedOrder({ ...fullOrder, clientData: selectedClient, createdByName: profile.full_name, deliveryAddress })
     setLoading(false)
+  }
+
+  function resetForm() {
+    setCreatedOrder(null)
+    setSelectedClient(null); setNewClientName(''); setShowClientForm(false)
+    setClientPhone(''); setClientEmail(''); setClientNit(''); setClientAddress('')
+    setNotes(''); setDeliveryNotes(''); setPriority('normal')
+    setIsReposition(false); setParentOrderId(''); setDeliveryType('local')
+    setUseAltAddress(false); setAltDeliveryAddress('')
+    setHasInitialPayment(false); setInitialPaymentAmount(''); setInitialPaymentMethod('efectivo')
+    setItems([{ product_id: '', product_name: '', unit_price: '', quantity: 1, notes: '' }])
+    setError(''); setSuccess('')
   }
 
   const total       = calcTotal()
   const placas      = products.filter(p => p.category === 'placas')
   const impresiones = products.filter(p => p.category === 'impresiones')
+  const parsedIP    = parseFloat(initialPaymentAmount) || 0
+  const remaining   = Math.max(0, total - parsedIP)
 
-  // ── Pantalla post-creación con ticket ─────────────────────────────────────
+  // ── Pantalla post-creación con ticket ──────────────────────────────────────
   if (createdOrder) {
-    const o     = createdOrder
-    const items = o.order_items || []
-    const PRIORITY_LABEL = { normal: 'Normal', prioritaria: 'PRIORITARIA', urgente: 'URGENTE' }
-    const REPOSITION_LABEL = {
-      error_impresion:  'Error de impresión',
-      placa_ctp_dañada: 'Placa CTP dañada',
-      error_produccion: 'Error de producción',
-      otro:             'Otro',
+    const o      = createdOrder
+    const oItems = o.order_items || []
+    const PRIORITY_LABEL    = { normal: 'Normal', prioritaria: 'PRIORITARIA', urgente: 'URGENTE' }
+    const REPOSITION_LABEL  = {
+      error_impresion: 'Error de impresión', placa_ctp_dañada: 'Placa CTP dañada',
+      error_produccion: 'Error de producción', otro: 'Otro',
     }
+    const METHOD_LABEL = {
+      efectivo: 'Efectivo', pos: 'POS / Tarjeta',
+      transferencia: 'Transferencia', credito: 'Crédito',
+    }
+    const paidNow    = o.initial_payment || 0
+    const creditLeft = o.credit_amount   || 0
 
     return (
       <div className="page">
         <Navbar profile={profile} />
         <main className="page__content">
-
           <div className="no-print" style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.5rem' }}>
             <div>
-              <h1 className="page__title" style={{ marginBottom:'0.25rem' }}>
-                ✓ Orden #{o.order_number} creada
-              </h1>
-              <p style={{ color:'var(--text-muted)', fontSize:'0.85rem' }}>
-                {new Date(o.created_at).toLocaleString('es-GT')}
-              </p>
+              <h1 className="page__title" style={{ marginBottom:'0.25rem' }}>✓ Orden #{o.order_number} creada</h1>
+              <p style={{ color:'var(--text-muted)', fontSize:'0.85rem' }}>{new Date(o.created_at).toLocaleString('es-GT')}</p>
             </div>
             <div style={{ display:'flex', gap:'0.75rem' }}>
-              <button className="btn btn--primary" onClick={() => window.print()}>
-                🖨 Imprimir Ticket
-              </button>
-              <button className="btn btn--secondary" onClick={() => {
-                setCreatedOrder(null)
-                setSelectedClient(null); setNewClientName(''); setShowClientForm(false)
-                setClientPhone(''); setClientEmail(''); setClientNit(''); setClientAddress('')
-                setNotes(''); setPriority('normal'); setIsReposition(false)
-                setParentOrderId(''); setDeliveryType('local')
-                setItems([{ product_id: '', product_name: '', unit_price: '', quantity: 1, notes: '' }])
-                setError(''); setSuccess('')
-              }}>
-                + Nueva Orden
-              </button>
-              <button className="btn btn--ghost" onClick={() => navigate('/mis-ordenes')}>
-                Ver Órdenes
-              </button>
+              <button className="btn btn--primary" onClick={() => window.print()}>🖨 Imprimir Ticket</button>
+              <button className="btn btn--secondary" onClick={resetForm}>+ Nueva Orden</button>
+              <button className="btn btn--ghost" onClick={() => navigate('/mis-ordenes')}>Ver Órdenes</button>
             </div>
           </div>
 
-          {/* TICKET IMPRIMIBLE */}
           <div className="ticket" id="ticket-print">
             <div className="ticket__header">
               <div className="ticket__logo">/// AVANZA</div>
               <div className="ticket__order-num">#{o.order_number}</div>
             </div>
-
             <div className="ticket__meta">
-              <div className="ticket__meta-row">
-                <span className="ticket__label">Fecha:</span>
-                <span>{new Date(o.created_at).toLocaleString('es-GT')}</span>
-              </div>
-              <div className="ticket__meta-row">
-                <span className="ticket__label">Elaboró:</span>
-                <span>{o.createdByName || '—'}</span>
-              </div>
+              <div className="ticket__meta-row"><span className="ticket__label">Fecha:</span><span>{new Date(o.created_at).toLocaleString('es-GT')}</span></div>
+              <div className="ticket__meta-row"><span className="ticket__label">Elaboró:</span><span>{o.createdByName || '—'}</span></div>
               <div className="ticket__meta-row">
                 <span className="ticket__label">Prioridad:</span>
-                <span style={{ fontWeight: 700, color: o.priority === 'urgente' ? '#dc2626' : o.priority === 'prioritaria' ? '#d97706' : 'inherit' }}>
+                <span style={{ fontWeight:700, color: o.priority==='urgente'?'#dc2626':o.priority==='prioritaria'?'#d97706':'inherit' }}>
                   {PRIORITY_LABEL[o.priority] || 'Normal'}
                 </span>
               </div>
               <div className="ticket__meta-row">
                 <span className="ticket__label">Entrega:</span>
-                <span style={{ fontWeight: 700 }}>
-                  {o.delivery_type === 'delivery' ? '🛵 Delivery' : '🏠 En local'}
-                </span>
+                <span style={{ fontWeight:700 }}>{o.delivery_type==='delivery'?'Delivery':'En local'}</span>
               </div>
               {o.is_reposition && (
-                <div className="ticket__meta-row">
-                  <span className="ticket__label">Reposición:</span>
-                  <span>{REPOSITION_LABEL[o.reposition_reason] || 'Sí'}</span>
-                </div>
+                <div className="ticket__meta-row"><span className="ticket__label">Reposición:</span><span>{REPOSITION_LABEL[o.reposition_reason]||'Sí'}</span></div>
               )}
             </div>
-
             <div className="ticket__divider" />
 
             <div className="ticket__section">
               <div className="ticket__section-title">Cliente</div>
               <div className="ticket__client-name">{o.client_name}</div>
-              {o.clientData?.phone   && <div className="ticket__client-detail">Tel: {o.clientData.phone}</div>}
-              {o.clientData?.nit     && <div className="ticket__client-detail">NIT: {o.clientData.nit}</div>}
-              {o.clientData?.address && <div className="ticket__client-detail">Dir: {o.clientData.address}</div>}
+              {o.clientData?.phone && <div className="ticket__client-detail">Tel: {o.clientData.phone}</div>}
+              {o.clientData?.nit   && <div className="ticket__client-detail">NIT: {o.clientData.nit}</div>}
+              {o.deliveryAddress   && <div className="ticket__client-detail">📍 Dir. entrega: {o.deliveryAddress}</div>}
             </div>
-
             <div className="ticket__divider" />
 
             <div className="ticket__section">
               <div className="ticket__section-title">Productos</div>
               <table className="ticket__items-table">
-                <thead>
-                  <tr>
-                    <th>Producto</th><th>Cant.</th><th>P.Unit</th><th>Subtotal</th>
-                  </tr>
-                </thead>
+                <thead><tr><th>Producto</th><th>Cant.</th><th>P.Unit</th><th>Subtotal</th></tr></thead>
                 <tbody>
-                  {items.map((item, i) => (
+                  {oItems.map((item, i) => (
                     <tr key={i}>
                       <td>{item.product_name}</td>
                       <td>{item.quantity}</td>
@@ -325,7 +348,6 @@ export default function NuevaOrden({ profile }) {
                 </tbody>
               </table>
             </div>
-
             <div className="ticket__divider" />
 
             <div className="ticket__total-row">
@@ -335,21 +357,34 @@ export default function NuevaOrden({ profile }) {
               </span>
             </div>
 
-            {o.notes && (
+            {!o.is_reposition && paidNow > 0 && (
               <>
-                <div className="ticket__divider" />
-                <div className="ticket__section">
-                  <div className="ticket__section-title">Nombre de archivo</div>
-                  <p className="ticket__notes">{o.notes}</p>
+                <div className="ticket__payment-row">
+                  <span>Pagado ({METHOD_LABEL[o.initial_payment_method]||''})</span>
+                  <span className="ticket__payment-amount">−Q{paidNow.toFixed(2)}</span>
+                </div>
+                <div className="ticket__credit-row">
+                  <span className="ticket__credit-label">{creditLeft<=0?'✓ PAGADO':'SALDO PENDIENTE'}</span>
+                  <span className="ticket__credit-amount" style={{ color: creditLeft<=0?'#16a34a':'#dc2626' }}>Q{creditLeft.toFixed(2)}</span>
                 </div>
               </>
             )}
+            {!o.is_reposition && paidNow === 0 && (
+              <div className="ticket__credit-row">
+                <span className="ticket__credit-label">SALDO PENDIENTE</span>
+                <span className="ticket__credit-amount" style={{ color:'#dc2626' }}>Q{o.total_amount?.toFixed(2)}</span>
+              </div>
+            )}
 
-            <div className="ticket__footer">
-              Estado: ABIERTA — Gracias por su preferencia
-            </div>
+            {o.notes && (
+              <><div className="ticket__divider" /><div className="ticket__section"><div className="ticket__section-title">Nombre de archivo</div><p className="ticket__notes">{o.notes}</p></div></>
+            )}
+            {o.delivery_notes && (
+              <><div className="ticket__divider" /><div className="ticket__section"><div className="ticket__section-title">Observaciones</div><p className="ticket__notes">{o.delivery_notes}</p></div></>
+            )}
+
+            <div className="ticket__footer">Estado: ABIERTA — Gracias por su preferencia</div>
           </div>
-
         </main>
       </div>
     )
@@ -425,7 +460,7 @@ export default function NuevaOrden({ profile }) {
                 <div className="form-group">
                   <label className="form-label">Dirección</label>
                   <input className="form-input" type="text" value={clientAddress}
-                    onChange={e => setClientAddress(e.target.value)} placeholder="Dirección de entrega o fiscal" />
+                    onChange={e => setClientAddress(e.target.value)} placeholder="Dirección del cliente" />
                 </div>
               </div>
             )}
@@ -468,7 +503,8 @@ export default function NuevaOrden({ profile }) {
                 { value: 'prioritaria', label: 'Prioritaria', color: '#f59e0b' },
                 { value: 'urgente',     label: 'Urgente',     color: '#ef4444' },
               ].map(opt => (
-                <label key={opt.value} className={`priority-option${priority === opt.value ? ' priority-option--active' : ''}`}
+                <label key={opt.value}
+                  className={`priority-option${priority === opt.value ? ' priority-option--active' : ''}`}
                   style={{ '--p-color': opt.color }}>
                   <input type="radio" name="priority" value={opt.value}
                     checked={priority === opt.value} onChange={() => setPriority(opt.value)} />
@@ -481,7 +517,7 @@ export default function NuevaOrden({ profile }) {
           {/* TIPO DE ENTREGA */}
           <section className="form-section">
             <h2 className="form-section__title">Tipo de entrega</h2>
-            <div className="payment-type-selector">
+            <div className="priority-selector">
               {[
                 { value: 'local',    label: '🏠 Entrega en local', color: '#60a5fa' },
                 { value: 'delivery', label: '🛵 Delivery',          color: '#f59e0b' },
@@ -495,6 +531,31 @@ export default function NuevaOrden({ profile }) {
                   {opt.label}
                 </label>
               ))}
+            </div>
+
+            {/* Dirección alternativa — siempre visible */}
+            <div className="alt-address-block">
+              <label className="toggle-label">
+                <input type="checkbox" checked={useAltAddress}
+                  onChange={e => {
+                    setUseAltAddress(e.target.checked)
+                    if (!e.target.checked) setAltDeliveryAddress('')
+                  }} />
+                <span>Indicar dirección de entrega</span>
+              </label>
+              {useAltAddress && (
+                <div className="form-group" style={{ marginTop: '0.75rem' }}>
+                  <label className="form-label">Dirección de entrega</label>
+                  <input className="form-input" type="text"
+                    value={altDeliveryAddress}
+                    onChange={e => setAltDeliveryAddress(e.target.value)}
+                    placeholder="Ej: 6a Av 12-34 Zona 10, Guatemala"
+                    autoFocus />
+                  <p style={{ fontSize:'0.75rem', color:'var(--text-muted)', marginTop:'0.25rem' }}>
+                    Aparecerá en el ticket y en el mensaje de Telegram al repartidor.
+                  </p>
+                </div>
+              )}
             </div>
           </section>
 
@@ -520,7 +581,7 @@ export default function NuevaOrden({ profile }) {
                       </optgroup>
                     </select>
                     {!item.product_id && (
-                      <input className="form-input" style={{ marginTop: '4px' }} type="text"
+                      <input className="form-input" style={{ marginTop:'4px' }} type="text"
                         value={item.product_name}
                         onChange={e => updateItem(index, 'product_name', e.target.value)}
                         placeholder="O escribe un producto personalizado" />
@@ -549,29 +610,86 @@ export default function NuevaOrden({ profile }) {
             </div>
             <div className="total-row">
               <span className="total-label">TOTAL</span>
-              <span className="total-amount" style={isReposition ? { color: '#4ade80' } : {}}>
+              <span className="total-amount" style={isReposition ? { color:'#4ade80' } : {}}>
                 {isReposition ? 'Q0.00 (reposición)' : `Q${total.toFixed(2)}`}
               </span>
             </div>
           </section>
 
-          {/* Aviso cobro */}
-          {!isReposition && total > 0 && (
-            <div style={{
-              background: '#0c1a2e', border: '1px solid #1e3a5f',
-              borderRadius: '8px', padding: '0.85rem 1rem',
-              fontSize: '0.82rem', color: '#60a5fa'
-            }}>
-              💳 El cobro se registrará al momento de la entrega vía Telegram.
+          {/* OBSERVACIONES DE ENTREGA */}
+          <section className="form-section">
+            <h2 className="form-section__title">Observaciones de entrega</h2>
+            <div className="form-group">
+              <textarea className="form-input form-textarea"
+                value={deliveryNotes} onChange={e => setDeliveryNotes(e.target.value)}
+                placeholder="Ej: Llamar antes de llegar, dejar en recepción, color específico..."
+                rows={3} />
             </div>
+          </section>
+
+          {/* PAGO INICIAL */}
+          {!isReposition && total > 0 && (
+            <section className="form-section">
+              <div className="payment-toggle-header">
+                <h2 className="form-section__title">Pago inicial</h2>
+                <label className="toggle-label">
+                  <input type="checkbox" checked={hasInitialPayment}
+                    onChange={e => { setHasInitialPayment(e.target.checked); if (!e.target.checked) setInitialPaymentAmount('') }} />
+                  <span>Recibir pago ahora</span>
+                </label>
+              </div>
+
+              {!hasInitialPayment && (
+                <div className="payment-info-box">
+                  💳 El cobro se registrará al momento de la entrega vía Telegram.
+                </div>
+              )}
+
+              {hasInitialPayment && (
+                <div className="initial-payment-form">
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">Monto recibido (Q)</label>
+                      <input className="form-input" type="number" step="0.01" min="0.01" max={total}
+                        value={initialPaymentAmount} onChange={e => setInitialPaymentAmount(e.target.value)}
+                        placeholder={`Máx Q${total.toFixed(2)}`} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Método de pago</label>
+                      <div className="priority-selector">
+                        {PAYMENT_METHODS.map(m => (
+                          <label key={m.value}
+                            className={`priority-option${initialPaymentMethod === m.value ? ' priority-option--active' : ''}`}
+                            style={{ '--p-color': '#f59e0b' }}>
+                            <input type="radio" name="ipMethod" value={m.value}
+                              checked={initialPaymentMethod === m.value}
+                              onChange={() => setInitialPaymentMethod(m.value)} />
+                            {m.label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  {parsedIP > 0 && parsedIP <= total && (
+                    <div className="payment-summary">
+                      <div className="payment-summary__row"><span>Total orden</span><span>Q{total.toFixed(2)}</span></div>
+                      <div className="payment-summary__row payment-summary__row--paid">
+                        <span>Pago ahora ({PAYMENT_METHODS.find(m => m.value === initialPaymentMethod)?.label})</span>
+                        <span>−Q{parsedIP.toFixed(2)}</span>
+                      </div>
+                      <div className={`payment-summary__row payment-summary__row--balance ${remaining <= 0 ? 'payment-summary__row--zero' : ''}`}>
+                        <span>{remaining <= 0 ? '✓ Pagado completo' : 'Saldo pendiente'}</span>
+                        <span>Q{remaining.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
           )}
 
           {isReposition && (
-            <div style={{
-              background: '#0a1a0a', border: '1px solid #166534',
-              borderRadius: '8px', padding: '0.85rem 1rem',
-              fontSize: '0.82rem', color: '#4ade80'
-            }}>
+            <div style={{ background:'#0a1a0a', border:'1px solid #166534', borderRadius:'8px', padding:'0.85rem 1rem', fontSize:'0.82rem', color:'#4ade80' }}>
               ✓ Esta es una reposición — no genera cobro ni crédito. Total: <strong>Q0.00</strong>
             </div>
           )}

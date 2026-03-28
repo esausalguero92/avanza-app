@@ -40,6 +40,13 @@
   .form-row { grid-template-columns: 1fr; }
 }
 
+/* Textarea */
+.form-textarea {
+  resize: vertical;
+  min-height: 72px;
+  line-height: 1.5;
+}
+
 /* Reposición */
 .reposition-toggle {
   display: flex;
@@ -195,6 +202,57 @@
   border-color: #14532d44;
 }
 
+/* Selector de dirección */
+.address-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.address-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 0.87rem;
+  color: var(--text-secondary);
+  transition: all 0.15s;
+  line-height: 1.4;
+}
+
+.address-option input[type="radio"] {
+  margin-top: 2px;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+
+.address-option:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.address-option--active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--text);
+}
+
+.address-option__tag {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 /* Selector de prioridad */
 .priority-selector {
   display: flex;
@@ -227,6 +285,65 @@
   border-color: var(--p-color);
   background: color-mix(in srgb, var(--p-color) 12%, transparent);
   color: var(--p-color);
+}
+
+/* ── PAGO INICIAL ─────────────────────────────────────────────────────────── */
+.payment-toggle-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.payment-info-box {
+  background: #0c1a2e;
+  border: 1px solid #1e3a5f;
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  font-size: 0.82rem;
+  color: #60a5fa;
+}
+
+.initial-payment-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  animation: fadeIn 0.2s ease;
+}
+
+.payment-summary {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.payment-summary__row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.6rem 1rem;
+  font-size: 0.88rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.payment-summary__row:last-child {
+  border-bottom: none;
+}
+
+.payment-summary__row--paid {
+  color: #4ade80;
+}
+
+.payment-summary__row--balance {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #ef4444;
+}
+
+.payment-summary__row--zero {
+  color: #4ade80;
 }
 
 /* ── TICKET ─────────────────────────────────────────────────────────────── */
@@ -363,6 +480,41 @@
   color: #111;
 }
 
+/* Filas de pago en el ticket */
+.ticket__payment-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0.2rem 0;
+  font-size: 0.82rem;
+  color: #444;
+}
+
+.ticket__payment-amount {
+  color: #16a34a;
+  font-weight: 700;
+}
+
+.ticket__credit-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0.35rem 0;
+  border-top: 1px solid #ddd;
+  margin-top: 0.2rem;
+}
+
+.ticket__credit-label {
+  font-weight: 900;
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+}
+
+.ticket__credit-amount {
+  font-size: 1.1rem;
+  font-weight: 900;
+}
+
 .ticket__notes {
   font-size: 0.82rem;
   color: #444;
@@ -380,28 +532,82 @@
 }
 
 /* ── ESTILOS DE IMPRESIÓN ────────────────────────────────────────────────── */
+
+/* Forzar tamaño de página al ancho del ticket térmico */
+@page {
+  size: 80mm auto;
+  margin: 0;
+}
+
 @media print {
   /* Ocultar todo excepto el ticket */
   body * { visibility: hidden; }
   .ticket, .ticket * { visibility: visible; }
 
-  /* Posicionar el ticket en la esquina superior izquierda */
+  /* Resetear html/body para que no genere páginas extras */
+  html, body {
+    width: 80mm !important;
+    height: auto !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  /* Posicionar ticket — position:absolute evita la repetición de fixed */
   .ticket {
-    position: fixed;
+    position: absolute;
     top: 0;
     left: 0;
-    width: 80mm;          /* Ancho de ticket termico estandar */
+    width: 80mm;
     max-width: 80mm;
     border: none;
     border-radius: 0;
-    padding: 8mm;
-    font-size: 10pt;
+    padding: 4mm 6mm;
+    /* 11pt base + semibold mínimo — las térmicas imprimen más claro que pantalla */
+    font-size: 11pt;
+    font-weight: 600;
     color: #000;
+    box-shadow: none;
+    page-break-after: avoid;
+    page-break-inside: avoid;
   }
 
-  .ticket__logo  { color: #000; }
-  .ticket__footer { color: #555; }
+  /* Logo y número */
+  .ticket__logo      { color: #000; font-size: 13pt; font-weight: 900; }
+  .ticket__order-num { font-size: 18pt; font-weight: 900; }
 
-  /* Quitar colores de prioridad para impresión B&W */
+  /* Etiquetas meta */
+  .ticket__label { font-weight: 900; color: #000; }
+
+  /* Títulos de sección */
+  .ticket__section-title { font-size: 9pt; font-weight: 900; color: #000; }
+
+  /* Cliente */
+  .ticket__client-name   { font-size: 12pt; font-weight: 900; }
+  .ticket__client-detail { font-size: 10pt; font-weight: 600; color: #000; }
+
+  /* Tabla de productos */
+  .ticket__items-table    { font-size: 10pt; }
+  .ticket__items-table th { font-size: 8pt;  font-weight: 900; color: #000; }
+  .ticket__items-table td { font-weight: 600; }
+
+  /* Totales */
+  .ticket__total-label  { font-size: 11pt; font-weight: 900; }
+  .ticket__total-amount { font-size: 16pt; font-weight: 900; color: #000; }
+
+  /* Pago */
+  .ticket__payment-row    { font-size: 10pt; font-weight: 600; }
+  .ticket__payment-amount { color: #000; font-weight: 900; }
+  .ticket__credit-label   { font-size: 11pt; font-weight: 900; }
+  .ticket__credit-amount  { color: #000 !important; font-weight: 900; font-size: 14pt; }
+
+  /* Notas */
+  .ticket__notes  { font-size: 10pt; font-weight: 600; color: #000; }
+
+  /* Footer */
+  .ticket__footer { font-size: 9pt; font-weight: 600; color: #000; }
+
+  /* Quitar colores de prioridad */
   .ticket__meta-row span[style] { color: #000 !important; }
 }
