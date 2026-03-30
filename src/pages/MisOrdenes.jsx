@@ -664,7 +664,7 @@ export default function MisOrdenes({ profile }) {
                   {/* Ticket imprimible */}
                   <div className="ticket" id="ticket-print" style={{ background: '#fff', color: '#000', padding: '1rem', borderRadius: '6px', fontSize: '0.8rem' }}>
                     <div className="ticket__header">
-                      <div className="ticket__logo">/// AVANZA</div>
+                      <div className="ticket__logo">F:____________</div>
                       <div className="ticket__order-num">#{savedOrder.order_number}</div>
                     </div>
                     <div className="ticket__meta">

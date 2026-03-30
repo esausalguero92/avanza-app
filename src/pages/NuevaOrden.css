@@ -540,59 +540,52 @@
 
 @media print {
 
-  /* 🔴 OCULTAR TODO MENOS EL TICKET (SIN ROMPER EL DOM) */
+  /* ── Ocultar todo el DOM excepto el ticket ── */
   body * {
-    visibility: hidden;
+    visibility: hidden !important;
   }
 
-  #ticket-print, #ticket-print * {
-    visibility: visible;
-  }
-
-  /* 🔥 POSICIONAR EL TICKET COMO HOJA */
   #ticket-print {
-    position: absolute;
-    top: 0;
-    left: 0;
-
-    width: 80mm;
-    max-width: 80mm;
-
-    margin: 0;
-    padding: 4mm;
-
-    background: #fff;
-    color: #000;
-
-    font-family: 'Courier New', monospace;
-    font-size: 10pt;
-
-    /* evitar páginas extra */
-    page-break-after: avoid;
-    break-after: avoid;
+    visibility: visible !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    margin: 0 !important;
+    padding: 4mm !important;
+    box-sizing: border-box !important;
+    background: #fff !important;
+    color: #000 !important;
+    font-family: 'Courier New', monospace !important;
+    font-size: 13pt !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
-  /* 🔴 eliminar estilos de card */
+  #ticket-print * {
+    visibility: visible !important;
+  }
+
+  /* ── html/body sin márgenes ni alturas extra ── */
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    background: #fff !important;
+  }
+
+  /* ── eliminar estilos de card ── */
   .ticket {
     border: none !important;
     border-radius: 0 !important;
     box-shadow: none !important;
     margin: 0 !important;
+    padding: 0 !important;
+    max-width: 100% !important;
   }
 
-  /* 🔥 evitar cortes */
-  #ticket-print,
-  #ticket-print * {
-    page-break-inside: avoid;
-    break-inside: avoid;
-  }
-
-  /* 🔴 IMPORTANTE: evitar alturas raras */
-  html, body {
-    height: auto !important;
-  }
-}
-  /* ── AJUSTES VISUALES TIPO TICKET ───────────────────────── */
+  /* ── AJUSTES VISUALES TIPO TICKET ───────────────────────────────────────── */
 
   .ticket__header {
     display: flex !important;
@@ -602,12 +595,12 @@
   }
 
   .ticket__logo {
-    font-size: 12pt !important;
+    font-size: 15pt !important;
     font-weight: 900 !important;
   }
 
   .ticket__order-num {
-    font-size: 16pt !important;
+    font-size: 19pt !important;
     font-weight: 900 !important;
   }
 
@@ -618,6 +611,7 @@
   .ticket__meta-row {
     display: flex !important;
     gap: 4px !important;
+    font-size: 12pt !important;
   }
 
   .ticket__label {
@@ -630,23 +624,23 @@
   }
 
   .ticket__section-title {
-    font-size: 8pt !important;
+    font-size: 11pt !important;
     font-weight: 900 !important;
   }
 
   .ticket__client-name {
-    font-size: 10pt !important;
+    font-size: 13pt !important;
     font-weight: 900 !important;
   }
 
   .ticket__client-detail {
-    font-size: 9pt !important;
+    font-size: 12pt !important;
   }
 
   .ticket__items-table {
     width: 100% !important;
     border-collapse: collapse !important;
-    font-size: 9pt !important;
+    font-size: 12pt !important;
   }
 
   .ticket__items-table th,
@@ -655,16 +649,17 @@
   }
 
   .ticket__items-table th {
-    font-size: 8pt !important;
+    font-size: 11pt !important;
     font-weight: 900 !important;
   }
 
   .ticket__items-table td {
-    font-weight: 600 !important;
+    font-weight: 700 !important;
   }
 
   .ticket__items-table tr {
     page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   .ticket__total-row {
@@ -673,19 +668,25 @@
   }
 
   .ticket__total-label {
-    font-size: 10pt !important;
+    font-size: 13pt !important;
     font-weight: 900 !important;
   }
 
   .ticket__total-amount {
-    font-size: 14pt !important;
+    font-size: 17pt !important;
     font-weight: 900 !important;
+    color: #000 !important;
   }
 
   .ticket__payment-row {
     display: flex !important;
     justify-content: space-between !important;
-    font-size: 9pt !important;
+    font-size: 12pt !important;
+  }
+
+  .ticket__payment-amount {
+    font-weight: 900 !important;
+    color: #000 !important;
   }
 
   .ticket__credit-row {
@@ -696,25 +697,35 @@
     padding-top: 2px !important;
   }
 
-  .ticket__credit-amount {
+  .ticket__credit-label {
     font-size: 12pt !important;
     font-weight: 900 !important;
   }
 
+  .ticket__credit-amount {
+    font-size: 15pt !important;
+    font-weight: 900 !important;
+    color: #000 !important;
+  }
+
   .ticket__notes {
-    font-size: 9pt !important;
+    font-size: 12pt !important;
+    color: #000 !important;
   }
 
   .ticket__footer {
     text-align: center !important;
-    font-size: 8pt !important;
+    font-size: 11pt !important;
     margin-top: 6px !important;
     border-top: 1px dashed #000 !important;
     padding-top: 4px !important;
-  }
-
-  /* evitar colores inline */
-  .ticket__meta-row span[style] {
     color: #000 !important;
   }
+
+  /* forzar negro en spans con color inline */
+  #ticket-print span[style],
+  #ticket-print [style*="color"] {
+    color: #000 !important;
+  }
+
 }
