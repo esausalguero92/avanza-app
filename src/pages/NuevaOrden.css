@@ -539,6 +539,29 @@
 }
 
 @media print {
+  /* ── FORZAR NEGRO, NEGRITA Y TAMAÑO EN TODO EL TICKET ── */
+  #ticket-print,
+  #ticket-print *,
+  #ticket-print td,
+  #ticket-print th,
+  #ticket-print span,
+  #ticket-print p,
+  #ticket-print div,
+  #ticket-print *[style],
+  #ticket-print .ticket__label,
+  #ticket-print .ticket__meta-row,
+  #ticket-print .ticket__client-detail,
+  #ticket-print .ticket__section-title,
+  #ticket-print .ticket__notes,
+  #ticket-print .ticket__footer,
+  #ticket-print .ticket__payment-row,
+  #ticket-print .ticket__total-label {
+    font-weight: bold !important;
+    font-size: 13pt !important;
+    color: #000 !important;
+  }
+
+
 
   /* ── Ocultar todo el DOM excepto el ticket ── */
   body * {
@@ -565,7 +588,7 @@
 
   #ticket-print * {
     visibility: visible !important;
-    font-weight: 900 !important;
+    font-weight: bold !important;
   }
 
   /* ── html/body sin márgenes ni alturas extra ── */
@@ -596,13 +619,13 @@
   }
 
   .ticket__logo {
-    font-size: 15pt !important;
-    font-weight: 900 !important;
+    font-size: 13pt !important;
+    font-weight: bold !important;
   }
 
   .ticket__order-num {
-    font-size: 19pt !important;
-    font-weight: 900 !important;
+    font-size: 13pt !important;
+    font-weight: bold !important;
   }
 
   .ticket__meta {
@@ -612,11 +635,11 @@
   .ticket__meta-row {
     display: flex !important;
     gap: 4px !important;
-    font-size: 12pt !important;
+    font-size: 13pt !important;
   }
 
   .ticket__label {
-    font-weight: 900 !important;
+    font-weight: bold !important;
   }
 
   .ticket__divider {
@@ -625,23 +648,23 @@
   }
 
   .ticket__section-title {
-    font-size: 11pt !important;
-    font-weight: 900 !important;
+    font-size: 13pt !important;
+    font-weight: bold !important;
   }
 
   .ticket__client-name {
     font-size: 13pt !important;
-    font-weight: 900 !important;
+    font-weight: bold !important;
   }
 
   .ticket__client-detail {
-    font-size: 12pt !important;
+    font-size: 13pt !important;
   }
 
   .ticket__items-table {
     width: 100% !important;
     border-collapse: collapse !important;
-    font-size: 12pt !important;
+    font-size: 13pt !important;
   }
 
   .ticket__items-table th,
@@ -650,12 +673,12 @@
   }
 
   .ticket__items-table th {
-    font-size: 11pt !important;
-    font-weight: 900 !important;
+    font-size: 13pt !important;
+    font-weight: bold !important;
   }
 
   .ticket__items-table td {
-    font-weight: 900 !important;
+    font-weight: bold !important;
   }
 
   .ticket__items-table tr {
@@ -670,23 +693,23 @@
 
   .ticket__total-label {
     font-size: 13pt !important;
-    font-weight: 900 !important;
+    font-weight: bold !important;
   }
 
   .ticket__total-amount {
-    font-size: 17pt !important;
-    font-weight: 900 !important;
+    font-size: 13pt !important;
+    font-weight: bold !important;
     color: #000 !important;
   }
 
   .ticket__payment-row {
     display: flex !important;
     justify-content: space-between !important;
-    font-size: 12pt !important;
+    font-size: 13pt !important;
   }
 
   .ticket__payment-amount {
-    font-weight: 900 !important;
+    font-weight: bold !important;
     color: #000 !important;
   }
 
@@ -699,24 +722,24 @@
   }
 
   .ticket__credit-label {
-    font-size: 12pt !important;
-    font-weight: 900 !important;
+    font-size: 13pt !important;
+    font-weight: bold !important;
   }
 
   .ticket__credit-amount {
-    font-size: 15pt !important;
-    font-weight: 900 !important;
+    font-size: 13pt !important;
+    font-weight: bold !important;
     color: #000 !important;
   }
 
   .ticket__notes {
-    font-size: 12pt !important;
+    font-size: 13pt !important;
     color: #000 !important;
   }
 
   .ticket__footer {
     text-align: center !important;
-    font-size: 11pt !important;
+    font-size: 13pt !important;
     margin-top: 6px !important;
     border-top: 1px dashed #000 !important;
     padding-top: 4px !important;
