@@ -540,18 +540,18 @@
 
 @media print {
 
-  /* 1. Ocultar navbar y botones */
-  .no-print,
-  nav, header,
-  .navbar, .navbar * { display: none !important; }
+  /* 1. Ocultar navbar (usa .page__header, no .navbar) y mobile menu */
+  .page__header,
+  .mobile-menu,
+  .mobile-menu__overlay,
+  .no-print { display: none !important; }
 
-  /* 2. Ocultar siblings del ticket dentro del contenedor */
-  #ticket-print ~ *,
+  /* 2. Ocultar todo en page__content excepto el ticket */
   .page__content > *:not(#ticket-print) { display: none !important; }
 
-  /* 3. Resetear contenedores estructurales:
-        Eliminar min-height y padding que generan espacio vacío */
-  html, body,
+  /* 3. Reset completo — incluye #root que tiene height:100% en index.css
+        y cancela flex/min-height que generan espacio vacío            */
+  html, body, #root,
   .page, .page__content {
     width: 80mm !important;
     height: auto !important;
@@ -561,10 +561,12 @@
     padding: 0 !important;
     overflow: visible !important;
     background: #fff !important;
-    display: block !important;
+    display: block !important;   /* cancela display:flex de .page        */
+    flex: none !important;       /* cancela flex:1 de .page__content     */
+    max-width: none !important;  /* cancela max-width:1200px de .page__content */
   }
 
-  /* 4. Ticket en flujo normal — el alto lo define su contenido */
+  /* 4. Ticket en flujo normal — alto definido por su contenido */
   #ticket-print {
     position: static !important;
     display: block !important;
