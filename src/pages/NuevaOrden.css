@@ -533,81 +533,83 @@
 
 /* ── ESTILOS DE IMPRESIÓN ────────────────────────────────────────────────── */
 
-/* Forzar tamaño de página al ancho del ticket térmico */
 @page {
   size: 80mm auto;
   margin: 0;
 }
 
 @media print {
-  /* Ocultar todo excepto el ticket */
-  body * { visibility: hidden; }
-  .ticket, .ticket * { visibility: visible; }
 
-  /* Resetear html/body para que no genere páginas extras */
-  html, body {
+  /* 1. Ocultar navbar y botones */
+  .no-print,
+  nav, header,
+  .navbar, .navbar * { display: none !important; }
+
+  /* 2. Ocultar siblings del ticket dentro del contenedor */
+  #ticket-print ~ *,
+  .page__content > *:not(#ticket-print) { display: none !important; }
+
+  /* 3. Resetear contenedores estructurales:
+        Eliminar min-height y padding que generan espacio vacío */
+  html, body,
+  .page, .page__content {
     width: 80mm !important;
     height: auto !important;
-    overflow: hidden !important;
+    min-height: 0 !important;
+    max-height: none !important;
     margin: 0 !important;
     padding: 0 !important;
+    overflow: visible !important;
     background: #fff !important;
+    display: block !important;
   }
 
-  /* Posicionar ticket — position:absolute evita la repetición de fixed */
-  .ticket {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 80mm;
-    max-width: 80mm;
-    border: none;
-    border-radius: 0;
-    padding: 4mm 6mm;
-    /* 11pt base + semibold mínimo — las térmicas imprimen más claro que pantalla */
-    font-size: 11pt;
-    font-weight: 600;
-    color: #000;
-    box-shadow: none;
-    page-break-after: avoid;
-    page-break-inside: avoid;
+  /* 4. Ticket en flujo normal — el alto lo define su contenido */
+  #ticket-print {
+    position: static !important;
+    display: block !important;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 4mm 6mm !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    font-family: 'Courier New', monospace !important;
+    font-size: 11pt !important;
+    font-weight: 600 !important;
+    color: #000 !important;
+    overflow: visible !important;
   }
 
-  /* Logo y número */
-  .ticket__logo      { color: #000; font-size: 13pt; font-weight: 900; }
-  .ticket__order-num { font-size: 18pt; font-weight: 900; }
+  /* 5. Tipografía */
+  .ticket__logo      { color: #000 !important; font-size: 13pt !important; font-weight: 900 !important; }
+  .ticket__order-num { font-size: 18pt !important; font-weight: 900 !important; color: #000 !important; }
 
-  /* Etiquetas meta */
-  .ticket__label { font-weight: 900; color: #000; }
+  .ticket__label         { font-weight: 900 !important; color: #000 !important; }
+  .ticket__section-title { font-size: 9pt !important; font-weight: 900 !important; color: #000 !important; }
 
-  /* Títulos de sección */
-  .ticket__section-title { font-size: 9pt; font-weight: 900; color: #000; }
+  .ticket__client-name   { font-size: 12pt !important; font-weight: 900 !important; }
+  .ticket__client-detail { font-size: 10pt !important; font-weight: 600 !important; color: #000 !important; }
 
-  /* Cliente */
-  .ticket__client-name   { font-size: 12pt; font-weight: 900; }
-  .ticket__client-detail { font-size: 10pt; font-weight: 600; color: #000; }
+  .ticket__items-table    { font-size: 10pt !important; }
+  .ticket__items-table th { font-size: 8pt !important; font-weight: 900 !important; color: #000 !important; }
+  .ticket__items-table td { font-weight: 600 !important; }
+  .ticket__items-table tr { page-break-inside: avoid; }
 
-  /* Tabla de productos */
-  .ticket__items-table    { font-size: 10pt; }
-  .ticket__items-table th { font-size: 8pt;  font-weight: 900; color: #000; }
-  .ticket__items-table td { font-weight: 600; }
+  .ticket__total-label    { font-size: 11pt !important; font-weight: 900 !important; }
+  .ticket__total-amount   { font-size: 16pt !important; font-weight: 900 !important; color: #000 !important; }
 
-  /* Totales */
-  .ticket__total-label  { font-size: 11pt; font-weight: 900; }
-  .ticket__total-amount { font-size: 16pt; font-weight: 900; color: #000; }
+  .ticket__payment-row    { font-size: 10pt !important; font-weight: 600 !important; }
+  .ticket__payment-amount { color: #000 !important; font-weight: 900 !important; }
+  .ticket__credit-label   { font-size: 11pt !important; font-weight: 900 !important; }
+  .ticket__credit-amount  { font-size: 14pt !important; font-weight: 900 !important; color: #000 !important; }
 
-  /* Pago */
-  .ticket__payment-row    { font-size: 10pt; font-weight: 600; }
-  .ticket__payment-amount { color: #000; font-weight: 900; }
-  .ticket__credit-label   { font-size: 11pt; font-weight: 900; }
-  .ticket__credit-amount  { color: #000 !important; font-weight: 900; font-size: 14pt; }
+  .ticket__notes  { font-size: 10pt !important; font-weight: 600 !important; color: #000 !important; }
+  .ticket__footer { font-size: 9pt !important; font-weight: 600 !important; color: #000 !important; }
 
-  /* Notas */
-  .ticket__notes  { font-size: 10pt; font-weight: 600; color: #000; }
-
-  /* Footer */
-  .ticket__footer { font-size: 9pt; font-weight: 600; color: #000; }
-
-  /* Quitar colores de prioridad */
   .ticket__meta-row span[style] { color: #000 !important; }
 }
