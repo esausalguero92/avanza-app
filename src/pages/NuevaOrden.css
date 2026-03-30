@@ -565,6 +565,7 @@
 
   #ticket-print * {
     visibility: visible !important;
+    font-weight: 900 !important;
   }
 
   /* ── html/body sin márgenes ni alturas extra ── */
@@ -654,7 +655,7 @@
   }
 
   .ticket__items-table td {
-    font-weight: 700 !important;
+    font-weight: 900 !important;
   }
 
   .ticket__items-table tr {
