@@ -540,78 +540,181 @@
 
 @media print {
 
-  /* 1. Ocultar navbar (usa .page__header, no .navbar) y mobile menu */
-  .page__header,
-  .mobile-menu,
-  .mobile-menu__overlay,
-  .no-print { display: none !important; }
-
-  /* 2. Ocultar todo en page__content excepto el ticket */
-  .page__content > *:not(#ticket-print) { display: none !important; }
-
-  /* 3. Reset completo — incluye #root que tiene height:100% en index.css
-        y cancela flex/min-height que generan espacio vacío            */
-  html, body, #root,
-  .page, .page__content {
-    width: 80mm !important;
-    height: auto !important;
-    min-height: 0 !important;
-    max-height: none !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    overflow: visible !important;
-    background: #fff !important;
-    display: block !important;   /* cancela display:flex de .page        */
-    flex: none !important;       /* cancela flex:1 de .page__content     */
-    max-width: none !important;  /* cancela max-width:1200px de .page__content */
+  /* 🔴 OCULTAR TODO MENOS EL TICKET (SIN ROMPER EL DOM) */
+  body * {
+    visibility: hidden;
   }
 
-  /* 4. Ticket en flujo normal — alto definido por su contenido */
+  #ticket-print, #ticket-print * {
+    visibility: visible;
+  }
+
+  /* 🔥 POSICIONAR EL TICKET COMO HOJA */
   #ticket-print {
-    position: static !important;
-    display: block !important;
-    width: 80mm !important;
-    max-width: 80mm !important;
-    height: auto !important;
-    min-height: 0 !important;
-    margin: 0 !important;
-    padding: 4mm 6mm !important;
+    position: absolute;
+    top: 0;
+    left: 0;
+
+    width: 80mm;
+    max-width: 80mm;
+
+    margin: 0;
+    padding: 4mm;
+
+    background: #fff;
+    color: #000;
+
+    font-family: 'Courier New', monospace;
+    font-size: 10pt;
+
+    /* evitar páginas extra */
+    page-break-after: avoid;
+    break-after: avoid;
+  }
+
+  /* 🔴 eliminar estilos de card */
+  .ticket {
     border: none !important;
     border-radius: 0 !important;
     box-shadow: none !important;
-    background: #fff !important;
-    font-family: 'Courier New', monospace !important;
-    font-size: 11pt !important;
-    font-weight: 600 !important;
-    color: #000 !important;
-    overflow: visible !important;
+    margin: 0 !important;
   }
 
-  /* 5. Tipografía */
-  .ticket__logo      { color: #000 !important; font-size: 13pt !important; font-weight: 900 !important; }
-  .ticket__order-num { font-size: 18pt !important; font-weight: 900 !important; color: #000 !important; }
+  /* 🔥 evitar cortes */
+  #ticket-print,
+  #ticket-print * {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
 
-  .ticket__label         { font-weight: 900 !important; color: #000 !important; }
-  .ticket__section-title { font-size: 9pt !important; font-weight: 900 !important; color: #000 !important; }
+  /* 🔴 IMPORTANTE: evitar alturas raras */
+  html, body {
+    height: auto !important;
+  }
+}
+  /* ── AJUSTES VISUALES TIPO TICKET ───────────────────────── */
 
-  .ticket__client-name   { font-size: 12pt !important; font-weight: 900 !important; }
-  .ticket__client-detail { font-size: 10pt !important; font-weight: 600 !important; color: #000 !important; }
+  .ticket__header {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    margin-bottom: 4px !important;
+  }
 
-  .ticket__items-table    { font-size: 10pt !important; }
-  .ticket__items-table th { font-size: 8pt !important; font-weight: 900 !important; color: #000 !important; }
-  .ticket__items-table td { font-weight: 600 !important; }
-  .ticket__items-table tr { page-break-inside: avoid; }
+  .ticket__logo {
+    font-size: 12pt !important;
+    font-weight: 900 !important;
+  }
 
-  .ticket__total-label    { font-size: 11pt !important; font-weight: 900 !important; }
-  .ticket__total-amount   { font-size: 16pt !important; font-weight: 900 !important; color: #000 !important; }
+  .ticket__order-num {
+    font-size: 16pt !important;
+    font-weight: 900 !important;
+  }
 
-  .ticket__payment-row    { font-size: 10pt !important; font-weight: 600 !important; }
-  .ticket__payment-amount { color: #000 !important; font-weight: 900 !important; }
-  .ticket__credit-label   { font-size: 11pt !important; font-weight: 900 !important; }
-  .ticket__credit-amount  { font-size: 14pt !important; font-weight: 900 !important; color: #000 !important; }
+  .ticket__meta {
+    margin-bottom: 4px !important;
+  }
 
-  .ticket__notes  { font-size: 10pt !important; font-weight: 600 !important; color: #000 !important; }
-  .ticket__footer { font-size: 9pt !important; font-weight: 600 !important; color: #000 !important; }
+  .ticket__meta-row {
+    display: flex !important;
+    gap: 4px !important;
+  }
 
-  .ticket__meta-row span[style] { color: #000 !important; }
+  .ticket__label {
+    font-weight: 900 !important;
+  }
+
+  .ticket__divider {
+    border-top: 1px dashed #000 !important;
+    margin: 4px 0 !important;
+  }
+
+  .ticket__section-title {
+    font-size: 8pt !important;
+    font-weight: 900 !important;
+  }
+
+  .ticket__client-name {
+    font-size: 10pt !important;
+    font-weight: 900 !important;
+  }
+
+  .ticket__client-detail {
+    font-size: 9pt !important;
+  }
+
+  .ticket__items-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 9pt !important;
+  }
+
+  .ticket__items-table th,
+  .ticket__items-table td {
+    padding: 2px 0 !important;
+  }
+
+  .ticket__items-table th {
+    font-size: 8pt !important;
+    font-weight: 900 !important;
+  }
+
+  .ticket__items-table td {
+    font-weight: 600 !important;
+  }
+
+  .ticket__items-table tr {
+    page-break-inside: avoid !important;
+  }
+
+  .ticket__total-row {
+    display: flex !important;
+    justify-content: space-between !important;
+  }
+
+  .ticket__total-label {
+    font-size: 10pt !important;
+    font-weight: 900 !important;
+  }
+
+  .ticket__total-amount {
+    font-size: 14pt !important;
+    font-weight: 900 !important;
+  }
+
+  .ticket__payment-row {
+    display: flex !important;
+    justify-content: space-between !important;
+    font-size: 9pt !important;
+  }
+
+  .ticket__credit-row {
+    display: flex !important;
+    justify-content: space-between !important;
+    border-top: 1px solid #000 !important;
+    margin-top: 4px !important;
+    padding-top: 2px !important;
+  }
+
+  .ticket__credit-amount {
+    font-size: 12pt !important;
+    font-weight: 900 !important;
+  }
+
+  .ticket__notes {
+    font-size: 9pt !important;
+  }
+
+  .ticket__footer {
+    text-align: center !important;
+    font-size: 8pt !important;
+    margin-top: 6px !important;
+    border-top: 1px dashed #000 !important;
+    padding-top: 4px !important;
+  }
+
+  /* evitar colores inline */
+  .ticket__meta-row span[style] {
+    color: #000 !important;
+  }
 }
