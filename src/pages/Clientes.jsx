@@ -10,12 +10,16 @@ export default function Clientes({ profile }) {
   const [loading, setLoading]     = useState(true)
   const [search, setSearch]       = useState('')
   const [showForm, setShowForm]   = useState(false)
-  const [editing, setEditing]     = useState(null)   // cliente siendo editado
+  const [editing, setEditing]     = useState(null)
   const [form, setForm]           = useState(EMPTY_FORM)
   const [saving, setSaving]       = useState(false)
   const [error, setError]         = useState('')
   const [success, setSuccess]     = useState('')
-  const [expandedId, setExpandedId] = useState(null) // ver detalle
+  const [expandedId, setExpandedId] = useState(null)
+
+  // Eliminar
+  const [deleteTarget, setDeleteTarget] = useState(null) // cliente a eliminar
+  const [deleting, setDeleting]         = useState(false)
 
   useEffect(() => { fetchClients() }, [])
 
@@ -96,6 +100,41 @@ export default function Clientes({ profile }) {
     setSaving(false)
   }
 
+  async function handleDelete() {
+    if (!deleteTarget) return
+    setDeleting(true)
+
+    // 1. Desvincular órdenes (conserva client_name en texto)
+    const { error: unlinkErr } = await supabase
+      .from('orders')
+      .update({ client_id: null })
+      .eq('client_id', deleteTarget.id)
+
+    if (unlinkErr) {
+      setSuccess('')
+      setError('Error al desvincular órdenes: ' + unlinkErr.message)
+      setDeleting(false)
+      setDeleteTarget(null)
+      return
+    }
+
+    // 2. Eliminar el cliente
+    const { error: deleteErr } = await supabase
+      .from('clients')
+      .delete()
+      .eq('id', deleteTarget.id)
+
+    if (deleteErr) {
+      setError('Error al eliminar cliente: ' + deleteErr.message)
+    } else {
+      setSuccess(`Cliente "${deleteTarget.name}" eliminado. Sus órdenes y créditos se conservan.`)
+    }
+
+    setDeleting(false)
+    setDeleteTarget(null)
+    fetchClients()
+  }
+
   const filtered = clients.filter(c =>
     !search ||
     c.name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -104,7 +143,6 @@ export default function Clientes({ profile }) {
     c.nit?.includes(search)
   )
 
-  // Stats
   const totalClients  = clients.length
   const totalCredito  = clients.reduce((s, c) =>
     s + (c.orders || []).reduce((os, o) => os + (o.credit_amount || 0), 0), 0)
@@ -150,7 +188,7 @@ export default function Clientes({ profile }) {
 
         {success && <p className="success-text" style={{ marginBottom: '1rem' }}>{success}</p>}
 
-        {/* Modal / formulario */}
+        {/* Modal formulario */}
         {showForm && (
           <div className="modal-overlay" onClick={closeForm}>
             <div className="modal" onClick={e => e.stopPropagation()}>
@@ -217,6 +255,47 @@ export default function Clientes({ profile }) {
           </div>
         )}
 
+        {/* Modal confirmar eliminación */}
+        {deleteTarget && (
+          <div className="modal-overlay" onClick={() => !deleting && setDeleteTarget(null)}>
+            <div className="modal" style={{ maxWidth: '420px' }} onClick={e => e.stopPropagation()}>
+              <div className="modal__header">
+                <h2 className="modal__title">Eliminar cliente</h2>
+                <button className="modal__close" onClick={() => setDeleteTarget(null)} disabled={deleting}>✕</button>
+              </div>
+              <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <p style={{ fontSize: '0.88rem', color: 'var(--text)' }}>
+                  ¿Estás seguro que deseas eliminar a <strong>{deleteTarget.name}</strong>?
+                </p>
+                {(deleteTarget.orders?.length > 0) && (
+                  <div style={{
+                    background: '#fef9ec', border: '1px solid #f59e0b',
+                    borderRadius: '7px', padding: '0.75rem 1rem',
+                    fontSize: '0.8rem', color: '#92400e'
+                  }}>
+                    ⚠️ Este cliente tiene <strong>{deleteTarget.orders.length} orden{deleteTarget.orders.length !== 1 ? 'es' : ''}</strong>.
+                    Serán desvinculadas del catálogo pero sus datos, pagos y créditos se conservan intactos.
+                  </div>
+                )}
+                {error && <p className="error-text">{error}</p>}
+                <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                  <button className="btn btn--ghost" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+                    Cancelar
+                  </button>
+                  <button
+                    className="btn"
+                    style={{ background: '#ef4444', color: 'white' }}
+                    onClick={handleDelete}
+                    disabled={deleting}
+                  >
+                    {deleting ? 'Eliminando...' : 'Sí, eliminar'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Lista de clientes */}
         {loading ? (
           <div className="loading-screen" style={{ height: '200px' }}>
@@ -238,9 +317,9 @@ export default function Clientes({ profile }) {
                     <div className="client-card__info">
                       <span className="client-card__name">{client.name}</span>
                       <div className="client-card__details">
-                        {client.phone && <span>📞 {client.phone}</span>}
-                        {client.email && <span>✉ {client.email}</span>}
-                        {client.nit   && <span>NIT: {client.nit}</span>}
+                        {client.phone   && <span>📞 {client.phone}</span>}
+                        {client.email   && <span>✉ {client.email}</span>}
+                        {client.nit     && <span>NIT: {client.nit}</span>}
                         {client.address && <span>📍 {client.address}</span>}
                       </div>
                     </div>
@@ -271,6 +350,13 @@ export default function Clientes({ profile }) {
                       )}
                       <button className="btn btn--secondary" onClick={() => openEdit(client)}>
                         Editar
+                      </button>
+                      <button
+                        className="btn"
+                        style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444' }}
+                        onClick={() => { setError(''); setDeleteTarget(client) }}
+                      >
+                        Eliminar
                       </button>
                     </div>
                   </div>

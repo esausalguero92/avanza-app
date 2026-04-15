@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabaseClient'
 import Navbar from '../components/Navbar'
 import './CuentaCorriente.css'
@@ -19,7 +20,7 @@ export default function CuentaCorriente({ profile }) {
 
   // Modal pago
   const [showModal, setShowModal]   = useState(false)
-  const [targetOrder, setTargetOrder] = useState(null) // null = saldar todo
+  const [targetOrder, setTargetOrder] = useState(null)
   const [payAmount, setPayAmount]   = useState('')
   const [payMethod, setPayMethod]   = useState('efectivo')
   const [payNotes, setPayNotes]     = useState('')
@@ -27,11 +28,13 @@ export default function CuentaCorriente({ profile }) {
   const [error, setError]           = useState('')
   const [successMsg, setSuccessMsg] = useState('')
 
+  // Reporte
+  const [showReport, setShowReport] = useState(false)
+
   useEffect(() => { fetchClients() }, [])
 
   async function fetchClients() {
     setLoading(true)
-    // Traer clientes que tienen crédito pendiente
     const { data: ordersData } = await supabase
       .from('orders')
       .select('client_id, client_name, credit_amount')
@@ -39,7 +42,6 @@ export default function CuentaCorriente({ profile }) {
 
     if (!ordersData) { setLoading(false); return }
 
-    // Agrupar por cliente
     const map = {}
     ordersData.forEach(o => {
       const key = o.client_id || o.client_name
@@ -50,7 +52,6 @@ export default function CuentaCorriente({ profile }) {
       map[key].orders_count  += 1
     })
 
-    // Enriquecer con datos del cliente
     const clientIds = [...new Set(ordersData.filter(o => o.client_id).map(o => o.client_id))]
     let clientsInfo = {}
     if (clientIds.length > 0) {
@@ -76,7 +77,6 @@ export default function CuentaCorriente({ profile }) {
     setDetailLoading(true)
     setSuccessMsg('')
 
-    // Órdenes con crédito
     const { data: ordData } = await supabase
       .from('orders')
       .select('*, order_items(*)')
@@ -84,7 +84,6 @@ export default function CuentaCorriente({ profile }) {
       .gt('credit_amount', 0)
       .order('created_at', { ascending: false })
 
-    // Historial de pagos
     const { data: payData } = await supabase
       .from('payments')
       .select('*, profiles(full_name)')
@@ -110,10 +109,7 @@ export default function CuentaCorriente({ profile }) {
     const amount = parseFloat(payAmount)
     if (!amount || amount <= 0) { setError('El monto debe ser mayor a 0.'); return }
 
-    const maxAmount = targetOrder
-      ? targetOrder.credit_amount
-      : selected.total_credit
-
+    const maxAmount = targetOrder ? targetOrder.credit_amount : selected.total_credit
     if (amount > maxAmount) {
       setError(`El monto no puede superar Q${maxAmount.toFixed(2)}.`); return
     }
@@ -121,8 +117,6 @@ export default function CuentaCorriente({ profile }) {
     setSaving(true); setError('')
 
     const ordersToProcess = targetOrder ? [targetOrder] : orders
-
-    // Distribuir el pago entre las órdenes (por fecha, más antigua primero)
     let remaining = amount
     const sorted  = [...ordersToProcess].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
 
@@ -130,10 +124,8 @@ export default function CuentaCorriente({ profile }) {
       if (remaining <= 0) break
       const toPay = Math.min(remaining, ord.credit_amount)
       remaining -= toPay
-
       const newCredit = Math.max(0, ord.credit_amount - toPay)
 
-      // Registrar pago
       await supabase.from('payments').insert({
         order_id:       ord.id,
         amount:         toPay,
@@ -142,7 +134,6 @@ export default function CuentaCorriente({ profile }) {
         created_by:     profile.id,
       })
 
-      // Actualizar crédito en la orden
       const updates = { credit_amount: newCredit }
       if (newCredit === 0) updates.status = 'cerrada'
       await supabase.from('orders').update(updates).eq('id', ord.id)
@@ -152,12 +143,252 @@ export default function CuentaCorriente({ profile }) {
     setSuccessMsg(`✓ Pago de Q${amount.toFixed(2)} registrado correctamente.`)
     setSaving(false)
 
-    // Refrescar datos
     await fetchClients()
-    // Refrescar detalle
     const updated = clients.find(c => c.client_id === selected.client_id)
     if (updated) await selectClient({ ...selected, total_credit: selected.total_credit - amount })
     else setSelected(null)
+  }
+
+  // ── REPORTE ──────────────────────────────────────────────────────
+  function getOrderPayments(orderId) {
+    return payments.filter(p => p.order_id === orderId)
+  }
+
+  function getOrderPaid(order) {
+    const fromPayments = getOrderPayments(order.id).reduce((s, p) => s + p.amount, 0)
+    return (order.initial_payment || 0) + fromPayments
+  }
+
+  function handleExport() {
+    const wb = XLSX.utils.book_new()
+
+    // ── Hoja 1: Resumen del cliente ───────────────────────────────
+    const resumenData = [
+      ['AVANZA IMPRESOS — Estado de Cuenta Corriente'],
+      [`Cliente: ${selected.name}`],
+      selected.phone ? [`Teléfono: ${selected.phone}`] : [],
+      selected.nit   ? [`NIT: ${selected.nit}`]         : [],
+      [`Generado el: ${new Date().toLocaleDateString('es-GT', { day: '2-digit', month: 'long', year: 'numeric' })}`],
+      [],
+      ['Total facturado', 'Total cobrado', 'Saldo pendiente'],
+      [reportTotalFacturado, reportTotalPagado, reportTotalDeuda],
+    ].filter(r => r.length > 0)
+
+    const wsResumen = XLSX.utils.aoa_to_sheet(resumenData)
+    wsResumen['!cols'] = [{ wch: 25 }, { wch: 18 }, { wch: 18 }]
+    XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen')
+
+    // ── Hoja 2: Detalle por orden y producto ──────────────────────
+    const headers = [
+      'Orden', 'Fecha', 'Estado', 'Archivo',
+      'Producto', 'Cant.', 'Precio Q', 'Subtotal Q',
+      'Total orden Q', 'Saldo pendiente Q',
+    ]
+
+    const detalleRows = []
+    ;[...orders]
+      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+      .forEach(order => {
+        const items = order.order_items || []
+
+        if (items.length === 0) {
+          detalleRows.push([
+            order.order_number,
+            new Date(order.created_at).toLocaleDateString('es-GT'),
+            order.status,
+            order.notes || '',
+            '—', '', '', '',
+            order.total_amount,
+            order.credit_amount,
+          ])
+        } else {
+          items.forEach((item, idx) => {
+            detalleRows.push([
+              idx === 0 ? order.order_number : '',
+              idx === 0 ? new Date(order.created_at).toLocaleDateString('es-GT') : '',
+              idx === 0 ? order.status : '',
+              idx === 0 ? (order.notes || '') : '',
+              item.product_name,
+              Number(item.quantity),
+              Number(item.unit_price),
+              Number(item.subtotal),
+              idx === 0 ? order.total_amount  : '',
+              idx === 0 ? order.credit_amount : '',
+            ])
+          })
+        }
+      })
+
+    const wsDetalle = XLSX.utils.aoa_to_sheet([headers, ...detalleRows])
+    wsDetalle['!cols'] = [
+      { wch: 8  }, { wch: 12 }, { wch: 10 }, { wch: 22 },
+      { wch: 28 }, { wch: 7  }, { wch: 11  }, { wch: 12 },
+      { wch: 14 }, { wch: 16 },
+    ]
+    XLSX.utils.book_append_sheet(wb, wsDetalle, 'Detalle')
+
+    // ── Hoja 3: Historial de pagos ────────────────────────────────
+    if (payments.length > 0) {
+      const pagosHeaders = ['# Orden', 'Fecha pago', 'Método', 'Monto Q', 'Nota', 'Registrado por']
+      const pagosRows = payments.map(p => {
+        const orden = orders.find(o => o.id === p.order_id)
+        return [
+          orden?.order_number || '',
+          new Date(p.created_at).toLocaleDateString('es-GT'),
+          METHOD_LABELS[p.payment_method] || p.payment_method,
+          p.amount,
+          p.notes || '',
+          p.profiles?.full_name || '',
+        ]
+      })
+      const wsPagos = XLSX.utils.aoa_to_sheet([pagosHeaders, ...pagosRows])
+      wsPagos['!cols'] = [{ wch: 10 }, { wch: 13 }, { wch: 15 }, { wch: 10 }, { wch: 25 }, { wch: 20 }]
+      XLSX.utils.book_append_sheet(wb, wsPagos, 'Historial de pagos')
+    }
+
+    const fileName = `credito_${selected.name.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`
+    XLSX.writeFile(wb, fileName)
+  }
+
+  // LEGACY — ya no se usa, se conserva por si acaso
+  function handlePrint() {
+    const printWindow = window.open('', '_blank', 'width=900,height=700')
+
+    const rows = [...orders].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).map(order => {
+      const orderPays = getOrderPayments(order.id)
+
+      const itemsRows = (order.order_items || []).map(item => `
+        <tr>
+          <td>${item.product_name}</td>
+          <td class="right">${item.quantity}</td>
+          <td class="right">Q${Number(item.unit_price).toFixed(2)}</td>
+          <td class="right">Q${Number(item.subtotal).toFixed(2)}</td>
+        </tr>`).join('')
+
+      const initialPayRow = order.initial_payment > 0
+        ? `<div class="tot-row"><span>Abono inicial (${METHOD_LABELS[order.initial_payment_method] || order.initial_payment_method || '—'})</span><span class="green">− Q${order.initial_payment.toFixed(2)}</span></div>`
+        : ''
+
+      const extraPayRows = orderPays.map(p => `
+        <div class="tot-row">
+          <span>Pago ${METHOD_LABELS[p.payment_method] || p.payment_method}${p.notes ? ` (${p.notes})` : ''} · ${new Date(p.created_at).toLocaleDateString('es-GT')}</span>
+          <span class="green">− Q${p.amount.toFixed(2)}</span>
+        </div>`).join('')
+
+      return `
+        <div class="order">
+          <div class="order-header">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span class="order-num">Orden #${order.order_number}</span>
+              <span class="badge">${order.status}</span>
+              <span class="muted">${new Date(order.created_at).toLocaleDateString('es-GT')}</span>
+            </div>
+            ${order.notes ? `<span class="file-label">📁 ${order.notes}</span>` : ''}
+          </div>
+          ${itemsRows ? `
+          <table>
+            <thead><tr><th>Producto</th><th class="right">Cant.</th><th class="right">Precio unit.</th><th class="right">Subtotal</th></tr></thead>
+            <tbody>${itemsRows}</tbody>
+          </table>` : ''}
+          <div class="totals">
+            <div class="tot-row"><span>Total orden</span><span>Q${order.total_amount.toFixed(2)}</span></div>
+            ${initialPayRow}
+            ${extraPayRows}
+            <div class="tot-row debt"><span>Saldo pendiente</span><span>Q${order.credit_amount.toFixed(2)}</span></div>
+          </div>
+        </div>`
+    }).join('')
+
+    printWindow.document.write(`<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Reporte de Crédito — ${selected.name}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Inter, Arial, sans-serif; font-size: 13px; color: #111; padding: 2cm; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start;
+      border-bottom: 2px solid #2563eb; padding-bottom: 16px; margin-bottom: 20px; }
+    .company { font-size: 16px; font-weight: 800; color: #2563eb; }
+    .report-title { font-size: 14px; font-weight: 700; margin-top: 4px; }
+    .gen-date { font-size: 11px; color: #888; margin-top: 4px; }
+    .client-name { font-size: 17px; font-weight: 800; text-align: right; }
+    .client-info { font-size: 11px; color: #555; text-align: right; margin-top: 3px; }
+    .summary { display: flex; gap: 1px; background: #dbeafe; border-radius: 8px;
+      overflow: hidden; margin-bottom: 24px; }
+    .sum-item { flex: 1; background: #f0f6ff; padding: 12px 16px; }
+    .sum-item.debt { background: #fff5f5; }
+    .sum-label { font-size: 10px; text-transform: uppercase; letter-spacing: .07em;
+      color: #666; font-weight: 700; }
+    .sum-value { font-family: monospace; font-size: 18px; font-weight: 800;
+      color: #111; margin-top: 4px; }
+    .sum-value.green { color: #16a34a; }
+    .sum-value.red { color: #dc2626; }
+    .order { border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 18px;
+      overflow: hidden; page-break-inside: avoid; }
+    .order-header { display: flex; justify-content: space-between; align-items: center;
+      background: #f1f5f9; padding: 8px 14px; border-bottom: 1px solid #e5e7eb;
+      flex-wrap: wrap; gap: 6px; }
+    .order-num { font-family: monospace; font-weight: 800; font-size: 13px; color: #2563eb; }
+    .badge { font-size: 10px; background: white; border: 1px solid #e5e7eb;
+      border-radius: 999px; padding: 2px 8px; text-transform: uppercase;
+      letter-spacing: .05em; color: #555; }
+    .muted { font-size: 11px; color: #888; }
+    .file-label { font-size: 11px; color: #555; font-style: italic; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { text-align: left; font-size: 10px; text-transform: uppercase;
+      letter-spacing: .06em; color: #555; padding: 7px 14px;
+      background: #fafafa; border-bottom: 1px solid #e5e7eb; }
+    td { padding: 7px 14px; border-bottom: 1px solid #f3f4f6; }
+    tr:last-child td { border-bottom: none; }
+    .right { text-align: right; }
+    .totals { padding: 8px 14px; background: #fafafa; border-top: 1px solid #e5e7eb; }
+    .tot-row { display: flex; justify-content: space-between; font-size: 12px;
+      color: #555; padding: 3px 0; }
+    .tot-row.debt { font-weight: 800; color: #dc2626; font-size: 13px;
+      border-top: 1px solid #fca5a5; margin-top: 5px; padding-top: 6px; }
+    .green { color: #16a34a; }
+    .footer { text-align: center; font-size: 10px; color: #aaa;
+      margin-top: 28px; padding-top: 12px; border-top: 1px solid #e5e7eb; }
+    @page { margin: 1.5cm; size: A4; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="company">Avanza Impresos</div>
+      <div class="report-title">Estado de Cuenta Corriente</div>
+      <div class="gen-date">Generado el ${new Date().toLocaleDateString('es-GT', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
+    </div>
+    <div>
+      <div class="client-name">${selected.name}</div>
+      ${selected.phone ? `<div class="client-info">📞 ${selected.phone}</div>` : ''}
+      ${selected.nit   ? `<div class="client-info">NIT: ${selected.nit}</div>` : ''}
+    </div>
+  </div>
+
+  <div class="summary">
+    <div class="sum-item">
+      <div class="sum-label">Total facturado</div>
+      <div class="sum-value">Q${reportTotalFacturado.toFixed(2)}</div>
+    </div>
+    <div class="sum-item">
+      <div class="sum-label">Total cobrado</div>
+      <div class="sum-value green">Q${reportTotalPagado.toFixed(2)}</div>
+    </div>
+    <div class="sum-item debt">
+      <div class="sum-label">Saldo pendiente</div>
+      <div class="sum-value red">Q${reportTotalDeuda.toFixed(2)}</div>
+    </div>
+  </div>
+
+  ${rows}
+
+  <div class="footer">Avanza Impresos · avanza.horizongt.com · Reporte generado automáticamente</div>
+  <script>window.onload = () => { window.print(); }<\/script>
+</body>
+</html>`)
+    printWindow.document.close()
   }
 
   const filtered = clients.filter(c =>
@@ -166,6 +397,11 @@ export default function CuentaCorriente({ profile }) {
   )
 
   const totalDeuda = clients.reduce((s, c) => s + c.total_credit, 0)
+
+  // Totales del reporte
+  const reportTotalFacturado = orders.reduce((s, o) => s + o.total_amount, 0)
+  const reportTotalPagado    = orders.reduce((s, o) => s + getOrderPaid(o), 0)
+  const reportTotalDeuda     = orders.reduce((s, o) => s + o.credit_amount, 0)
 
   return (
     <div className="page">
@@ -251,11 +487,16 @@ export default function CuentaCorriente({ profile }) {
                   </div>
                 </div>
 
-                {/* Botón saldar todo */}
-                <div style={{ marginBottom: '1rem' }}>
-                  <button className="btn btn--primary" style={{ width: '100%' }}
+                {/* Botones de acción */}
+                <div style={{ display: 'flex', gap: '0.6rem', marginBottom: '1rem' }}>
+                  <button className="btn btn--primary" style={{ flex: 1 }}
                     onClick={() => openPayModal(null)}>
                     💳 Registrar Pago — Saldar Todo o Parcial
+                  </button>
+                  <button className="btn btn--secondary"
+                    style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                    onClick={handleExport}>
+                    📊 Exportar Excel
                   </button>
                 </div>
 
@@ -314,7 +555,7 @@ export default function CuentaCorriente({ profile }) {
         </div>
       </main>
 
-      {/* Modal de pago */}
+      {/* ── MODAL PAGO ─────────────────────────────────────────────── */}
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
@@ -391,6 +632,159 @@ export default function CuentaCorriente({ profile }) {
             </form>
           </div>
         </div>
+      )}
+
+      {/* ── MODAL REPORTE ──────────────────────────────────────────── */}
+      {showReport && selected && (
+        <>
+          {/* Estilos de impresión */}
+          <style>{`
+            @media print {
+              body > * { display: none !important; }
+              .cc-report-printable { display: block !important; position: static !important; }
+              .cc-report-actions { display: none !important; }
+              @page { margin: 1.5cm; size: A4; }
+            }
+          `}</style>
+
+          <div className="modal-overlay" onClick={() => setShowReport(false)}>
+            <div className="cc-report-modal" onClick={e => e.stopPropagation()}>
+
+              {/* Barra de acciones */}
+              <div className="cc-report-actions">
+                <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                  Reporte de Crédito — {selected.name}
+                </span>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button className="btn btn--primary" onClick={handlePrint}>
+                    🖨️ Imprimir
+                  </button>
+                  <button className="btn btn--ghost" onClick={() => setShowReport(false)}>
+                    ✕ Cerrar
+                  </button>
+                </div>
+              </div>
+
+              {/* Contenido imprimible */}
+              <div className="cc-report-printable">
+
+                {/* Encabezado */}
+                <div className="cc-report-header">
+                  <div>
+                    <div className="cc-report-company">Avanza Impresos</div>
+                    <div className="cc-report-title">Estado de Cuenta Corriente</div>
+                    <div className="cc-report-date">
+                      Generado el {new Date().toLocaleDateString('es-GT', { day: '2-digit', month: 'long', year: 'numeric' })}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div className="cc-report-client-name">{selected.name}</div>
+                    {selected.phone && <div className="cc-report-client-info">📞 {selected.phone}</div>}
+                    {selected.nit   && <div className="cc-report-client-info">NIT: {selected.nit}</div>}
+                  </div>
+                </div>
+
+                {/* Resumen global */}
+                <div className="cc-report-summary">
+                  <div className="cc-report-summary-item">
+                    <span className="cc-report-summary-label">Total facturado</span>
+                    <span className="cc-report-summary-value">Q{reportTotalFacturado.toFixed(2)}</span>
+                  </div>
+                  <div className="cc-report-summary-item">
+                    <span className="cc-report-summary-label">Total cobrado</span>
+                    <span className="cc-report-summary-value" style={{ color: '#16a34a' }}>Q{reportTotalPagado.toFixed(2)}</span>
+                  </div>
+                  <div className="cc-report-summary-item cc-report-summary-item--debt">
+                    <span className="cc-report-summary-label">Saldo pendiente</span>
+                    <span className="cc-report-summary-value" style={{ color: '#dc2626' }}>Q{reportTotalDeuda.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                {/* Órdenes */}
+                {[...orders].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).map(order => {
+                  const orderPays  = getOrderPayments(order.id)
+                  const totalPagado = getOrderPaid(order)
+
+                  return (
+                    <div key={order.id} className="cc-report-order">
+
+                      {/* Cabecera de orden */}
+                      <div className="cc-report-order-header">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          <span className="cc-report-order-num">Orden #{order.order_number}</span>
+                          <span className="cc-report-order-status">{order.status}</span>
+                          <span className="cc-report-order-date-label">
+                            {new Date(order.created_at).toLocaleDateString('es-GT')}
+                          </span>
+                        </div>
+                        {order.notes && (
+                          <span className="cc-report-order-file">📁 {order.notes}</span>
+                        )}
+                      </div>
+
+                      {/* Tabla de productos */}
+                      {order.order_items && order.order_items.length > 0 && (
+                        <table className="cc-report-table">
+                          <thead>
+                            <tr>
+                              <th>Producto</th>
+                              <th className="cc-report-table-right">Cant.</th>
+                              <th className="cc-report-table-right">Precio unit.</th>
+                              <th className="cc-report-table-right">Subtotal</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {order.order_items.map(item => (
+                              <tr key={item.id}>
+                                <td>{item.product_name}</td>
+                                <td className="cc-report-table-right">{item.quantity}</td>
+                                <td className="cc-report-table-right">Q{Number(item.unit_price).toFixed(2)}</td>
+                                <td className="cc-report-table-right">Q{Number(item.subtotal).toFixed(2)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+
+                      {/* Montos de la orden */}
+                      <div className="cc-report-order-totals">
+                        <div className="cc-report-total-row">
+                          <span>Total orden</span>
+                          <span>Q{order.total_amount?.toFixed(2)}</span>
+                        </div>
+                        {order.initial_payment > 0 && (
+                          <div className="cc-report-total-row">
+                            <span>Abono inicial ({METHOD_LABELS[order.initial_payment_method] || order.initial_payment_method || '—'})</span>
+                            <span style={{ color: '#16a34a' }}>− Q{order.initial_payment?.toFixed(2)}</span>
+                          </div>
+                        )}
+                        {orderPays.map(p => (
+                          <div key={p.id} className="cc-report-total-row">
+                            <span>
+                              Pago {METHOD_LABELS[p.payment_method] || p.payment_method}
+                              {p.notes ? ` (${p.notes})` : ''}
+                              {' · '}{new Date(p.created_at).toLocaleDateString('es-GT')}
+                            </span>
+                            <span style={{ color: '#16a34a' }}>− Q{p.amount?.toFixed(2)}</span>
+                          </div>
+                        ))}
+                        <div className="cc-report-total-row cc-report-total-row--debt">
+                          <span>Saldo pendiente</span>
+                          <span>Q{order.credit_amount?.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+
+                {/* Pie de página */}
+                <div className="cc-report-footer">
+                  Avanza Impresos · avanza.horizongt.com · Reporte generado automáticamente
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </div>
   )
