@@ -162,23 +162,7 @@ export default function CuentaCorriente({ profile }) {
   function handleExport() {
     const wb = XLSX.utils.book_new()
 
-    // ── Hoja 1: Resumen del cliente ───────────────────────────────
-    const resumenData = [
-      ['AVANZA IMPRESOS — Estado de Cuenta Corriente'],
-      [`Cliente: ${selected.name}`],
-      selected.phone ? [`Teléfono: ${selected.phone}`] : [],
-      selected.nit   ? [`NIT: ${selected.nit}`]         : [],
-      [`Generado el: ${new Date().toLocaleDateString('es-GT', { day: '2-digit', month: 'long', year: 'numeric' })}`],
-      [],
-      ['Total facturado', 'Total cobrado', 'Saldo pendiente'],
-      [reportTotalFacturado, reportTotalPagado, reportTotalDeuda],
-    ].filter(r => r.length > 0)
-
-    const wsResumen = XLSX.utils.aoa_to_sheet(resumenData)
-    wsResumen['!cols'] = [{ wch: 25 }, { wch: 18 }, { wch: 18 }]
-    XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen')
-
-    // ── Hoja 2: Detalle por orden y producto ──────────────────────
+    // ── Hoja 1: Detalle por orden y producto ──────────────────────
     const headers = [
       'Orden', 'Fecha', 'Estado', 'Archivo',
       'Producto', 'Cant.', 'Precio Q', 'Subtotal Q',
@@ -219,11 +203,18 @@ export default function CuentaCorriente({ profile }) {
         }
       })
 
-    const wsDetalle = XLSX.utils.aoa_to_sheet([headers, ...detalleRows])
+    // Fila de totales
+    const totalRow = [
+      '', '', '', '', '', '', '', '',
+      'TOTAL SALDO PENDIENTE',
+      reportTotalDeuda,
+    ]
+
+    const wsDetalle = XLSX.utils.aoa_to_sheet([headers, ...detalleRows, [], totalRow])
     wsDetalle['!cols'] = [
       { wch: 8  }, { wch: 12 }, { wch: 10 }, { wch: 22 },
       { wch: 28 }, { wch: 7  }, { wch: 11  }, { wch: 12 },
-      { wch: 14 }, { wch: 16 },
+      { wch: 22 }, { wch: 16 },
     ]
     XLSX.utils.book_append_sheet(wb, wsDetalle, 'Detalle')
 
