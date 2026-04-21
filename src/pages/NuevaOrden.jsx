@@ -5,6 +5,12 @@ import Navbar from '../components/Navbar'
 import ClientAutocomplete from '../components/ClientAutocomplete'
 import './NuevaOrden.css'
 
+const PAYMENT_METHODS = [
+  { value: 'efectivo',      label: '💵 Efectivo' },
+  { value: 'pos',           label: '💳 POS / Tarjeta' },
+  { value: 'transferencia', label: '📲 Transferencia' },
+]
+
 export default function NuevaOrden({ profile }) {
   const navigate = useNavigate()
   const [products, setProducts] = useState([])
@@ -20,21 +26,40 @@ export default function NuevaOrden({ profile }) {
   const [clientEmail, setClientEmail]       = useState('')
   const [clientNit, setClientNit]           = useState('')
   const [clientAddress, setClientAddress]   = useState('')
+  const [clientAddressAlt, setClientAddressAlt] = useState('')
+
+  // Dirección alternativa para esta orden (campo libre, no toca datos del cliente)
+  const [useAltAddress, setUseAltAddress]         = useState(false)
+  const [altDeliveryAddress, setAltDeliveryAddress] = useState('')
 
   const [createdOrder, setCreatedOrder] = useState(null)
 
   // Orden
   const [notes, setNotes]                       = useState('')
+  const [deliveryNotes, setDeliveryNotes]       = useState('')
   const [isReposition, setIsReposition]         = useState(false)
   const [parentOrderId, setParentOrderId]       = useState('')
   const [repositionReason, setRepositionReason] = useState('error_impresion')
-  const [priority, setPriority]   = useState('normal')
-  const [deliveryType, setDeliveryType] = useState('local')
+  const [priority, setPriority]                 = useState('normal')
+  const [deliveryType, setDeliveryType]         = useState('local')
   const [items, setItems] = useState([
     { product_id: '', product_name: '', unit_price: '', quantity: 1, notes: '' }
   ])
 
+  // Pago inicial
+  const [hasInitialPayment, setHasInitialPayment]       = useState(false)
+  const [initialPaymentAmount, setInitialPaymentAmount] = useState('')
+  const [initialPaymentMethod, setInitialPaymentMethod] = useState('efectivo')
+
   useEffect(() => { fetchProducts() }, [])
+
+  // Resetear dirección alternativa al cambiar tipo de entrega
+  useEffect(() => {
+    if (deliveryType === 'local') {
+      setUseAltAddress(false)
+      setAltDeliveryAddress('')
+    }
+  }, [deliveryType])
 
   async function fetchProducts() {
     const { data } = await supabase
@@ -47,13 +72,16 @@ export default function NuevaOrden({ profile }) {
     setSelectedClient(client)
     setNewClientName('')
     setShowClientForm(false)
-    setClientPhone(''); setClientEmail(''); setClientNit(''); setClientAddress('')
+    setClientPhone(''); setClientEmail(''); setClientNit('')
+    setClientAddress(''); setClientAddressAlt('')
+    setUseAltAddress(false); setAltDeliveryAddress('')
   }
 
   function handleClientNew(name) {
     setSelectedClient(null)
     setNewClientName(name)
     setShowClientForm(name.length >= 2)
+    setUseAltAddress(false); setAltDeliveryAddress('')
   }
 
   function addItem() {
@@ -82,6 +110,12 @@ export default function NuevaOrden({ profile }) {
       sum + ((parseFloat(item.unit_price) || 0) * (parseInt(item.quantity, 10) || 0)), 0)
   }
 
+  // Dirección efectiva para la orden: solo si se habilitó el checkbox
+  function getEffectiveDeliveryAddress() {
+    if (useAltAddress && altDeliveryAddress.trim()) return altDeliveryAddress.trim()
+    return null
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
     setLoading(true)
@@ -99,6 +133,12 @@ export default function NuevaOrden({ profile }) {
       setLoading(false); return
     }
 
+    const parsedInitialPayment = parseFloat(initialPaymentAmount) || 0
+    if (hasInitialPayment && parsedInitialPayment <= 0) {
+      setError('El monto del pago inicial debe ser mayor a Q0.')
+      setLoading(false); return
+    }
+
     // 1. Resolver client_id
     let clientId = selectedClient?.id || null
 
@@ -106,12 +146,13 @@ export default function NuevaOrden({ profile }) {
       const { data: newClient, error: clientErr } = await supabase
         .from('clients')
         .insert({
-          name:       clientName,
-          phone:      clientPhone.trim()   || null,
-          email:      clientEmail.trim()   || null,
-          nit:        clientNit.trim()     || null,
-          address:    clientAddress.trim() || null,
-          created_by: profile.id,
+          name:        clientName,
+          phone:       clientPhone.trim()      || null,
+          email:       clientEmail.trim()      || null,
+          nit:         clientNit.trim()        || null,
+          address:     clientAddress.trim()    || null,
+          address_alt: clientAddressAlt.trim() || null,
+          created_by:  profile.id,
         })
         .select().single()
 
@@ -122,7 +163,7 @@ export default function NuevaOrden({ profile }) {
       clientId = newClient.id
     }
 
-    // 1.5 Si es reposición, buscar el UUID de la orden por número
+    // 1.5 Si es reposición, buscar UUID de la orden padre
     let resolvedParentId = null
     if (isReposition && parentOrderId.trim()) {
       const orderNum = parseInt(parentOrderId.trim(), 10)
@@ -142,13 +183,17 @@ export default function NuevaOrden({ profile }) {
       resolvedParentId = parentOrder.id
     }
 
+    const effectiveDeliveryAddress = getEffectiveDeliveryAddress()
+
     // 2. Crear orden
     const { data: order, error: orderErr } = await supabase
       .from('orders')
       .insert({
         client_name:       clientName,
         client_id:         clientId,
-        notes:             notes.trim() || null,
+        notes:             notes.trim()         || null,
+        delivery_notes:    deliveryNotes.trim()  || null,
+        delivery_address:  effectiveDeliveryAddress,
         status:            'abierta',
         priority:          priority,
         created_by:        profile.id,
@@ -164,7 +209,7 @@ export default function NuevaOrden({ profile }) {
       setLoading(false); return
     }
 
-    // 3. Insertar ítems — reposiciones van con precio 0
+    // 3. Insertar ítems
     const { error: itemsErr } = await supabase
       .from('order_items')
       .insert(items.map(item => ({
@@ -181,18 +226,33 @@ export default function NuevaOrden({ profile }) {
       setLoading(false); return
     }
 
-    // 4. Ajustar crédito
-    // Reposiciones: todo en cero
-    // Órdenes normales: credit_amount = total (se cobra al entregar vía Telegram)
+    // 4. Calcular montos y registrar pago inicial
     if (isReposition) {
       await supabase.from('orders')
         .update({ total_amount: 0, credit_amount: 0, initial_payment: 0 })
         .eq('id', order.id)
     } else {
-      const total = order.total_amount || calcTotal()
+      const orderTotal = order.total_amount || calcTotal()
+      const ipAmount   = hasInitialPayment ? parsedInitialPayment : 0
+      const credit     = orderTotal - ipAmount
+
       await supabase.from('orders')
-        .update({ credit_amount: total, initial_payment: 0 })
+        .update({
+          credit_amount:          credit,
+          initial_payment:        ipAmount,
+          initial_payment_method: hasInitialPayment ? initialPaymentMethod : null,
+        })
         .eq('id', order.id)
+
+      if (hasInitialPayment && ipAmount > 0) {
+        await supabase.from('payments').insert({
+          order_id:       order.id,
+          amount:         ipAmount,
+          payment_method: initialPaymentMethod,
+          notes:          'Pago inicial al crear orden',
+          created_by:     profile.id,
+        })
+      }
     }
 
     // 5. Fetch orden completa para el ticket
@@ -202,111 +262,22 @@ export default function NuevaOrden({ profile }) {
       .eq('id', order.id)
       .single()
 
-    setCreatedOrder({ ...fullOrder, clientData: selectedClient, createdByName: profile.full_name })
+    setCreatedOrder({
+      ...fullOrder,
+      clientData:       selectedClient,
+      createdByName:    profile.full_name,
+      deliveryAddress: effectiveDeliveryAddress,
+      paidNow:          hasInitialPayment ? parsedInitialPayment : 0,
+      paymentMethodNow: hasInitialPayment ? initialPaymentMethod : null,
+    })
     setLoading(false)
   }
 
   const total       = calcTotal()
   const placas      = products.filter(p => p.category === 'placas')
   const impresiones = products.filter(p => p.category === 'impresiones')
-
-  // ── Imprimir via iframe oculto — no toca el DOM de React ────────────────────
-  function printTicket(o, items) {
-    const PRIO_COLOR  = { normal:'#000', prioritaria:'#92400e', urgente:'#b91c1c' }
-    const PRIO_LABEL  = { normal:'Normal', prioritaria:'PRIORITARIA', urgente:'URGENTE' }
-    const REPO_LABEL  = {
-      error_impresion:'Error de impresión', placa_ctp_dañada:'Placa CTP dañada',
-      error_produccion:'Error de producción', otro:'Otro',
-    }
-
-    const rows = items.map(item =>
-      '<tr><td>' + item.product_name + '</td><td>' + item.quantity + '</td><td>Q' +
-      parseFloat(item.unit_price).toFixed(2) + '</td><td>Q' +
-      (item.quantity * item.unit_price).toFixed(2) + '</td></tr>'
-    ).join('')
-
-    const clientExtra = [
-      o.clientData?.phone   ? 'Tel: ' + o.clientData.phone   : '',
-      o.clientData?.nit     ? 'NIT: ' + o.clientData.nit     : '',
-      o.clientData?.address ? 'Dir: ' + o.clientData.address : '',
-    ].filter(Boolean).map(t => '<div class="det">' + t + '</div>').join('')
-
-    const notesBlock = o.notes
-      ? '<div class="div"></div><div class="sec"><div class="sec-t">Nombre de archivo</div><div class="notes">' + o.notes + '</div></div>'
-      : ''
-
-    const repoBlock = o.is_reposition
-      ? '<div class="row"><span class="lbl">Reposición:</span><span>' + (REPO_LABEL[o.reposition_reason] || 'Sí') + '</span></div>'
-      : ''
-
-    const totalStr = o.is_reposition
-      ? 'Q0.00 — Reposición'
-      : 'Q' + parseFloat(o.total_amount || 0).toFixed(2)
-
-    const prioColor = PRIO_COLOR[o.priority] || '#000'
-    const prioLabel = PRIO_LABEL[o.priority] || 'Normal'
-    const entrega   = o.delivery_type === 'delivery' ? 'Delivery' : 'En local'
-    const fecha     = new Date(o.created_at).toLocaleString('es-GT')
-    const estado    = (o.status || 'abierta').toUpperCase()
-
-    const html = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><style>' +
-      '@page{size:80mm auto;margin:0}' +
-      '*{box-sizing:border-box;margin:0;padding:0}' +
-      'body{width:80mm;padding:4mm 6mm;font-family:\'Courier New\',monospace;font-size:11pt;font-weight:600;color:#000;background:#fff}' +
-      '.hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:3mm}' +
-      '.logo{font-size:13pt;font-weight:900}.num{font-size:18pt;font-weight:900}' +
-      '.meta{display:flex;flex-direction:column;gap:1mm;margin-bottom:3mm}' +
-      '.row{display:flex;gap:2mm}.lbl{font-weight:900;min-width:20mm}' +
-      '.div{border-top:1px dashed #888;margin:2.5mm 0}' +
-      '.sec{margin-bottom:2mm}.sec-t{font-size:8pt;font-weight:900;text-transform:uppercase;letter-spacing:.08em;margin-bottom:1.5mm}' +
-      '.cname{font-size:12pt;font-weight:900;margin-bottom:1mm}.det{font-size:9pt}' +
-      'table{width:100%;border-collapse:collapse;font-size:10pt}' +
-      'th{text-align:left;border-bottom:1px solid #aaa;padding:1mm;font-size:8pt;font-weight:900;text-transform:uppercase}' +
-      'td{padding:1.5mm 1mm;border-bottom:1px solid #e8e8e8;vertical-align:top}' +
-      'th:not(:first-child),td:not(:first-child){text-align:right;white-space:nowrap}' +
-      '.trow{display:flex;justify-content:space-between;align-items:baseline;padding:1.5mm 0}' +
-      '.tlbl{font-size:11pt;font-weight:900;letter-spacing:.08em}.tamt{font-size:16pt;font-weight:900}' +
-      '.notes{font-size:10pt}.foot{margin-top:3mm;text-align:center;font-size:8pt;border-top:1px dashed #aaa;padding-top:2mm}' +
-      '</style></head><body>' +
-      '<div class="hdr"><div class="logo">/// AVANZA</div><div class="num">#' + o.order_number + '</div></div>' +
-      '<div class="meta">' +
-        '<div class="row"><span class="lbl">Fecha:</span><span>' + fecha + '</span></div>' +
-        '<div class="row"><span class="lbl">Cliente:</span><span>' + o.client_name + '</span></div>' +
-        '<div class="row"><span class="lbl">Prioridad:</span><span style="font-weight:900;color:' + prioColor + '">' + prioLabel + '</span></div>' +
-        '<div class="row"><span class="lbl">Entrega:</span><span style="font-weight:900">' + entrega + '</span></div>' +
-        repoBlock +
-      '</div>' +
-      '<div class="div"></div>' +
-      '<div class="sec"><div class="sec-t">Cliente</div><div class="cname">' + o.client_name + '</div>' + clientExtra + '</div>' +
-      '<div class="div"></div>' +
-      '<div class="sec"><div class="sec-t">Productos</div>' +
-        '<table><thead><tr><th>Producto</th><th>Cant.</th><th>P.Unit</th><th>Subtotal</th></tr></thead>' +
-        '<tbody>' + rows + '</tbody></table>' +
-      '</div>' +
-      '<div class="div"></div>' +
-      '<div class="trow"><span class="tlbl">TOTAL</span><span class="tamt">' + totalStr + '</span></div>' +
-      notesBlock +
-      '<div class="foot">Estado: ' + estado + ' — Gracias por su preferencia</div>' +
-      '</body></html>'
-
-    // Iframe invisible — el browser imprime solo su contenido, no la página de React
-    const iframe = document.createElement('iframe')
-    iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;'
-    document.body.appendChild(iframe)
-
-    iframe.contentDocument.open()
-    iframe.contentDocument.write(html)
-    iframe.contentDocument.close()
-
-    iframe.contentWindow.onafterprint = () => {
-      document.body.removeChild(iframe)
-    }
-
-    setTimeout(() => {
-      iframe.contentWindow.focus()
-      iframe.contentWindow.print()
-    }, 400)
-  }
+  const parsedIP    = parseFloat(initialPaymentAmount) || 0
+  const remaining   = Math.max(0, total - parsedIP)
 
   // ── Pantalla post-creación con ticket ─────────────────────────────────────
   if (createdOrder) {
@@ -319,6 +290,7 @@ export default function NuevaOrden({ profile }) {
       error_produccion: 'Error de producción',
       otro:             'Otro',
     }
+    const METHOD_LABEL = { efectivo: 'Efectivo', pos: 'POS/Tarjeta', transferencia: 'Transferencia' }
 
     return (
       <div className="page">
@@ -335,15 +307,18 @@ export default function NuevaOrden({ profile }) {
               </p>
             </div>
             <div style={{ display:'flex', gap:'0.75rem' }}>
-              <button className="btn btn--primary" onClick={() => printTicket(o, items)}>
+              <button className="btn btn--primary" onClick={() => window.print()}>
                 🖨 Imprimir Ticket
               </button>
               <button className="btn btn--secondary" onClick={() => {
                 setCreatedOrder(null)
                 setSelectedClient(null); setNewClientName(''); setShowClientForm(false)
-                setClientPhone(''); setClientEmail(''); setClientNit(''); setClientAddress('')
-                setNotes(''); setPriority('normal'); setIsReposition(false)
-                setParentOrderId(''); setDeliveryType('local')
+                setClientPhone(''); setClientEmail(''); setClientNit('')
+                setClientAddress(''); setClientAddressAlt('')
+                setNotes(''); setDeliveryNotes(''); setPriority('normal')
+                setIsReposition(false); setParentOrderId(''); setDeliveryType('local')
+                setUseAltAddress(false); setAltDeliveryAddress('')
+                setHasInitialPayment(false); setInitialPaymentAmount(''); setInitialPaymentMethod('efectivo')
                 setItems([{ product_id: '', product_name: '', unit_price: '', quantity: 1, notes: '' }])
                 setError(''); setSuccess('')
               }}>
@@ -398,7 +373,7 @@ export default function NuevaOrden({ profile }) {
               <div className="ticket__client-name">{o.client_name}</div>
               {o.clientData?.phone   && <div className="ticket__client-detail">Tel: {o.clientData.phone}</div>}
               {o.clientData?.nit     && <div className="ticket__client-detail">NIT: {o.clientData.nit}</div>}
-              {o.clientData?.address && <div className="ticket__client-detail">Dir: {o.clientData.address}</div>}
+              {o.deliveryAddress     && <div className="ticket__client-detail">Dir: {o.deliveryAddress}</div>}
             </div>
 
             <div className="ticket__divider" />
@@ -426,6 +401,7 @@ export default function NuevaOrden({ profile }) {
 
             <div className="ticket__divider" />
 
+            {/* Totales con desglose de pago */}
             <div className="ticket__total-row">
               <span className="ticket__total-label">TOTAL</span>
               <span className="ticket__total-amount">
@@ -433,12 +409,37 @@ export default function NuevaOrden({ profile }) {
               </span>
             </div>
 
+            {!o.is_reposition && o.paidNow > 0 && (
+              <>
+                <div className="ticket__total-row" style={{ fontSize: '0.8rem', color: '#16a34a' }}>
+                  <span>Pagado ({METHOD_LABEL[o.paymentMethodNow] || o.paymentMethodNow})</span>
+                  <span>− Q{o.paidNow.toFixed(2)}</span>
+                </div>
+                <div className="ticket__total-row" style={{ borderTop: '1px dashed #bbb', paddingTop: '0.25rem' }}>
+                  <span style={{ fontWeight: 700 }}>SALDO PENDIENTE</span>
+                  <span style={{ fontWeight: 700, color: '#dc2626' }}>
+                    Q{(o.total_amount - o.paidNow).toFixed(2)}
+                  </span>
+                </div>
+              </>
+            )}
+
             {o.notes && (
               <>
                 <div className="ticket__divider" />
                 <div className="ticket__section">
                   <div className="ticket__section-title">Nombre de archivo</div>
                   <p className="ticket__notes">{o.notes}</p>
+                </div>
+              </>
+            )}
+
+            {o.delivery_notes && (
+              <>
+                <div className="ticket__divider" />
+                <div className="ticket__section">
+                  <div className="ticket__section-title">Observaciones</div>
+                  <p className="ticket__notes">{o.delivery_notes}</p>
                 </div>
               </>
             )}
@@ -520,13 +521,30 @@ export default function NuevaOrden({ profile }) {
                       onChange={e => setClientNit(e.target.value)} placeholder="CF o número de NIT" />
                   </div>
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Dirección</label>
-                  <input className="form-input" type="text" value={clientAddress}
-                    onChange={e => setClientAddress(e.target.value)} placeholder="Dirección de entrega o fiscal" />
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Dirección principal</label>
+                    <input className="form-input" type="text" value={clientAddress}
+                      onChange={e => setClientAddress(e.target.value)} placeholder="Dirección principal" />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Dirección alternativa</label>
+                    <input className="form-input" type="text" value={clientAddressAlt}
+                      onChange={e => setClientAddressAlt(e.target.value)} placeholder="Dirección alternativa (opcional)" />
+                  </div>
                 </div>
               </div>
             )}
+          </section>
+
+          {/* OBSERVACIONES */}
+          <section className="form-section">
+            <h2 className="form-section__title">Observaciones de entrega</h2>
+            <div className="form-group">
+              <textarea className="form-input" rows={3} value={deliveryNotes}
+                onChange={e => setDeliveryNotes(e.target.value)}
+                placeholder="Indicaciones especiales, acabados, detalles de producción..." />
+            </div>
           </section>
 
           {/* REPOSICIÓN */}
@@ -594,6 +612,30 @@ export default function NuevaOrden({ profile }) {
                 </label>
               ))}
             </div>
+            {/* Checkbox siempre visible — no depende del tipo de entrega */}
+            <div className="alt-address-block" style={{ marginTop: '0.5rem' }}>
+              <label className="toggle-label">
+                <input type="checkbox" checked={useAltAddress}
+                  onChange={e => {
+                    setUseAltAddress(e.target.checked)
+                    if (!e.target.checked) setAltDeliveryAddress('')
+                  }} />
+                <span>Enviar a dirección alternativa</span>
+              </label>
+              {useAltAddress && (
+                <div className="form-group" style={{ marginTop: '0.75rem' }}>
+                  <label className="form-label">Dirección de entrega</label>
+                  <input className="form-input" type="text"
+                    value={altDeliveryAddress}
+                    onChange={e => setAltDeliveryAddress(e.target.value)}
+                    placeholder="Ej: 6a Av 12-34 Zona 10, Guatemala"
+                    autoFocus />
+                  <p style={{ fontSize:'0.75rem', color:'var(--text-muted)', marginTop:'0.25rem' }}>
+                    Aparecerá en el ticket y en el mensaje de Telegram al repartidor.
+                  </p>
+                </div>
+              )}
+            </div>
           </section>
 
           {/* ÍTEMS */}
@@ -653,15 +695,81 @@ export default function NuevaOrden({ profile }) {
             </div>
           </section>
 
-          {/* Aviso cobro */}
+          {/* PAGO INICIAL */}
           {!isReposition && total > 0 && (
-            <div style={{
-              background: '#0c1a2e', border: '1px solid #1e3a5f',
-              borderRadius: '8px', padding: '0.85rem 1rem',
-              fontSize: '0.82rem', color: '#60a5fa'
-            }}>
-              💳 El cobro se registrará al momento de la entrega vía Telegram.
-            </div>
+            <section className="form-section">
+              <h2 className="form-section__title">Pago inicial</h2>
+              <div className="reposition-toggle">
+                <label className="toggle-label">
+                  <input type="checkbox" checked={hasInitialPayment}
+                    onChange={e => {
+                      setHasInitialPayment(e.target.checked)
+                      if (!e.target.checked) { setInitialPaymentAmount('') }
+                    }} />
+                  <span>Recibir pago ahora</span>
+                </label>
+              </div>
+
+              {hasInitialPayment && (
+                <>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">Monto recibido (Q)</label>
+                      <input className="form-input" type="number" step="0.01" min="0.01"
+                        value={initialPaymentAmount}
+                        onChange={e => setInitialPaymentAmount(e.target.value)}
+                        placeholder="0.00" autoFocus />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Método de pago</label>
+                      <div className="priority-selector" style={{ flexWrap: 'nowrap' }}>
+                        {PAYMENT_METHODS.map(m => (
+                          <label key={m.value}
+                            className={`priority-option${initialPaymentMethod === m.value ? ' priority-option--active' : ''}`}
+                            style={{ '--p-color': '#60a5fa', fontSize: '0.8rem', padding: '0.4rem 0.85rem' }}>
+                            <input type="radio" name="initPayMethod" value={m.value}
+                              checked={initialPaymentMethod === m.value}
+                              onChange={() => setInitialPaymentMethod(m.value)} />
+                            {m.label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {parsedIP > 0 && (
+                    <div style={{
+                      background: '#0c1a0c', border: '1px solid #166534',
+                      borderRadius: '8px', padding: '0.85rem 1rem',
+                      fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.35rem'
+                    }}>
+                      <div style={{ display:'flex', justifyContent:'space-between' }}>
+                        <span style={{ color: '#86efac' }}>Total orden</span>
+                        <span style={{ color: '#86efac' }}>Q{total.toFixed(2)}</span>
+                      </div>
+                      <div style={{ display:'flex', justifyContent:'space-between' }}>
+                        <span style={{ color: '#4ade80' }}>Pago recibido</span>
+                        <span style={{ color: '#4ade80' }}>− Q{parsedIP.toFixed(2)}</span>
+                      </div>
+                      <div style={{ display:'flex', justifyContent:'space-between', borderTop:'1px solid #166534', paddingTop:'0.35rem', fontWeight:700 }}>
+                        <span style={{ color: remaining > 0 ? '#fca5a5' : '#4ade80' }}>Saldo pendiente</span>
+                        <span style={{ color: remaining > 0 ? '#fca5a5' : '#4ade80' }}>Q{remaining.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {!hasInitialPayment && (
+                <div style={{
+                  background: '#0c1a2e', border: '1px solid #1e3a5f',
+                  borderRadius: '8px', padding: '0.85rem 1rem',
+                  fontSize: '0.82rem', color: '#60a5fa'
+                }}>
+                  💳 El cobro se registrará al momento de la entrega vía Telegram.
+                </div>
+              )}
+            </section>
           )}
 
           {isReposition && (
