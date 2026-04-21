@@ -279,6 +279,111 @@ export default function NuevaOrden({ profile }) {
   const parsedIP    = parseFloat(initialPaymentAmount) || 0
   const remaining   = Math.max(0, total - parsedIP)
 
+  // ── Imprimir via iframe invisible ─────────────────────────────────────────
+  function printTicket(o, orderItems) {
+    const PRIO_COLOR = { normal:'#000', prioritaria:'#92400e', urgente:'#b91c1c' }
+    const PRIO_LABEL = { normal:'Normal', prioritaria:'PRIORITARIA', urgente:'URGENTE' }
+    const REPO_LABEL = {
+      error_impresion:'Error de impresión', placa_ctp_dañada:'Placa CTP dañada',
+      error_produccion:'Error de producción', otro:'Otro',
+    }
+    const METHOD_LABEL = { efectivo:'Efectivo', pos:'POS/Tarjeta', transferencia:'Transferencia' }
+
+    const rows = orderItems.map(item =>
+      '<tr><td>' + item.product_name + '</td><td>' + item.quantity + '</td><td>Q' +
+      parseFloat(item.unit_price).toFixed(2) + '</td><td>Q' +
+      (item.quantity * item.unit_price).toFixed(2) + '</td></tr>'
+    ).join('')
+
+    const clientExtra = [
+      o.clientData?.phone   ? 'Tel: ' + o.clientData.phone   : '',
+      o.clientData?.nit     ? 'NIT: ' + o.clientData.nit     : '',
+      o.deliveryAddress     ? 'Dir: ' + o.deliveryAddress     : (o.clientData?.address ? 'Dir: ' + o.clientData.address : ''),
+    ].filter(Boolean).map(t => '<div class="det">' + t + '</div>').join('')
+
+    const notesBlock = o.notes
+      ? '<div class="div"></div><div class="sec"><div class="sec-t">Nombre de archivo</div><div class="notes">' + o.notes + '</div></div>'
+      : ''
+
+    const deliveryNotesBlock = o.delivery_notes
+      ? '<div class="div"></div><div class="sec"><div class="sec-t">Observaciones</div><div class="notes">' + o.delivery_notes + '</div></div>'
+      : ''
+
+    const repoBlock = o.is_reposition
+      ? '<div class="row"><span class="lbl">Reposición:</span><span>' + (REPO_LABEL[o.reposition_reason] || 'Sí') + '</span></div>'
+      : ''
+
+    const totalStr = o.is_reposition
+      ? 'Q0.00 — Reposición'
+      : 'Q' + parseFloat(o.total_amount || 0).toFixed(2)
+
+    const paidNow = o.paidNow || 0
+    const pagoBlock = (!o.is_reposition && paidNow > 0)
+      ? '<div class="div"></div>' +
+        '<div class="trow" style="font-size:10pt"><span>Pagado (' + (METHOD_LABEL[o.paymentMethodNow] || o.paymentMethodNow) + ')</span><span style="color:#166534">- Q' + paidNow.toFixed(2) + '</span></div>' +
+        '<div class="trow"><span style="font-weight:900">SALDO PENDIENTE</span><span class="tamt" style="color:#b91c1c">Q' + (parseFloat(o.total_amount) - paidNow).toFixed(2) + '</span></div>'
+      : ''
+
+    const html = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">' +
+      '<title>Ticket #' + o.order_number + '</title>' +
+      '<style>' +
+      '@page{size:80mm auto;margin:0}' +
+      '*{box-sizing:border-box;margin:0;padding:0}' +
+      'body{width:80mm;padding:4mm 6mm;font-family:"Courier New",Courier,monospace;font-size:11pt;font-weight:700;color:#000;background:#fff;-webkit-print-color-adjust:exact}' +
+      '.hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:3mm}' +
+      '.logo{font-size:14pt;font-weight:900;letter-spacing:0.05em}' +
+      '.num{font-size:18pt;font-weight:900}' +
+      '.meta{display:flex;flex-direction:column;gap:1mm;margin-bottom:3mm}' +
+      '.row{display:flex;gap:2mm}.lbl{font-weight:900;min-width:22mm}' +
+      '.div{border-top:2px dashed #555;margin:2.5mm 0}' +
+      '.sec{margin-bottom:2mm}' +
+      '.sec-t{font-size:8pt;font-weight:900;text-transform:uppercase;letter-spacing:.1em;margin-bottom:1.5mm;text-decoration:underline}' +
+      '.cname{font-size:13pt;font-weight:900;margin-bottom:1mm}' +
+      '.det{font-size:9.5pt;font-weight:700}' +
+      'table{width:100%;border-collapse:collapse;font-size:9.5pt}' +
+      'th{text-align:left;border-bottom:2px solid #333;padding:1mm;font-size:8pt;font-weight:900;text-transform:uppercase}' +
+      'td{padding:1.5mm 1mm;border-bottom:1px solid #ccc;vertical-align:top;font-weight:700}' +
+      'th:not(:first-child),td:not(:first-child){text-align:right;white-space:nowrap}' +
+      '.trow{display:flex;justify-content:space-between;align-items:baseline;padding:1.5mm 0}' +
+      '.tlbl{font-size:11pt;font-weight:900;letter-spacing:.08em}' +
+      '.tamt{font-size:17pt;font-weight:900}' +
+      '.notes{font-size:10pt;font-weight:700}' +
+      '.foot{margin-top:3mm;text-align:center;font-size:8pt;font-weight:700;border-top:2px dashed #555;padding-top:2mm}' +
+      '</style></head><body>' +
+      '<div class="hdr"><div class="logo">AVANZA</div><div class="num">#' + o.order_number + '</div></div>' +
+      '<div class="div"></div>' +
+      '<div class="meta">' +
+        '<div class="row"><span class="lbl">Fecha:</span><span>' + new Date(o.created_at).toLocaleString('es-GT') + '</span></div>' +
+        (o.createdByName ? '<div class="row"><span class="lbl">Elaboró:</span><span>' + o.createdByName + '</span></div>' : '') +
+        '<div class="row"><span class="lbl">Prioridad:</span><span style="font-weight:900;color:' + (PRIO_COLOR[o.priority]||'#000') + '">' + (PRIO_LABEL[o.priority]||'Normal') + '</span></div>' +
+        '<div class="row"><span class="lbl">Entrega:</span><span style="font-weight:900">' + (o.delivery_type === 'delivery' ? 'Delivery' : 'En local') + '</span></div>' +
+        repoBlock +
+      '</div>' +
+      '<div class="div"></div>' +
+      '<div class="sec"><div class="sec-t">Cliente</div><div class="cname">' + o.client_name + '</div>' + clientExtra + '</div>' +
+      '<div class="div"></div>' +
+      '<div class="sec"><div class="sec-t">Productos</div>' +
+        '<table><thead><tr><th>Producto</th><th>Cant.</th><th>P.Unit</th><th>Subtotal</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody></table>' +
+      '</div>' +
+      '<div class="div"></div>' +
+      '<div class="trow"><span class="tlbl">TOTAL</span><span class="tamt">' + totalStr + '</span></div>' +
+      pagoBlock +
+      notesBlock +
+      deliveryNotesBlock +
+      '<div class="foot">Estado: ABIERTA — Gracias por su preferencia</div>' +
+      '</body></html>'
+
+    const iframe = document.createElement('iframe')
+    iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;'
+    document.body.appendChild(iframe)
+    iframe.contentDocument.open()
+    iframe.contentDocument.write(html)
+    iframe.contentDocument.close()
+    iframe.contentWindow.onafterprint = () => { document.body.removeChild(iframe) }
+    setTimeout(() => { iframe.contentWindow.focus(); iframe.contentWindow.print() }, 400)
+  }
+
   // ── Pantalla post-creación con ticket ─────────────────────────────────────
   if (createdOrder) {
     const o     = createdOrder
@@ -307,7 +412,7 @@ export default function NuevaOrden({ profile }) {
               </p>
             </div>
             <div style={{ display:'flex', gap:'0.75rem' }}>
-              <button className="btn btn--primary" onClick={() => window.print()}>
+              <button className="btn btn--primary" onClick={() => printTicket(o, items)}>
                 🖨 Imprimir Ticket
               </button>
               <button className="btn btn--secondary" onClick={() => {
