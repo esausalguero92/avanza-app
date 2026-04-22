@@ -329,7 +329,7 @@ export default function NuevaOrden({ profile }) {
       '<style>' +
       '@page{size:80mm auto;margin:0}' +
       '*{box-sizing:border-box;margin:0;padding:0}' +
-      'body{width:80mm;padding:4mm 6mm;font-family:"Courier New",Courier,monospace;font-size:11pt;font-weight:900;color:#000;background:#fff;-webkit-print-color-adjust:exact}' +
+      'body{width:80mm;padding:4mm 6mm;font-family:"Courier New",Courier,monospace;font-size:11pt;font-weight:900;color:#000;background:#fff;-webkit-print-color-adjust:exact;-webkit-text-stroke:0.4px #000}' +
       '.hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:3mm}' +
       '.logo{font-size:14pt;font-weight:900;letter-spacing:0.05em}' +
       '.num{font-size:18pt;font-weight:900}' +
@@ -339,16 +339,16 @@ export default function NuevaOrden({ profile }) {
       '.sec{margin-bottom:2mm}' +
       '.sec-t{font-size:8pt;font-weight:900;text-transform:uppercase;letter-spacing:.1em;margin-bottom:1.5mm;text-decoration:underline}' +
       '.cname{font-size:13pt;font-weight:900;margin-bottom:1mm}' +
-      '.det{font-size:10pt;font-weight:900}' +
+      '.det{font-size:10pt;font-weight:900;-webkit-text-stroke:0.4px #000}' +
       'table{width:100%;border-collapse:collapse;font-size:10.5pt}' +
       'th{text-align:left;border-bottom:2px solid #333;padding:1mm;font-size:8pt;font-weight:900;text-transform:uppercase}' +
-      'td{padding:1.5mm 1mm;border-bottom:1px solid #ccc;vertical-align:top;font-weight:900}' +
+      'td{padding:1.5mm 1mm;border-bottom:1px solid #ccc;vertical-align:top;font-weight:900;-webkit-text-stroke:0.4px #000}' +
       'th:not(:first-child),td:not(:first-child){text-align:right;white-space:nowrap}' +
       '.trow{display:flex;justify-content:space-between;align-items:baseline;padding:1.5mm 0}' +
       '.tlbl{font-size:11pt;font-weight:900;letter-spacing:.08em}' +
       '.tamt{font-size:17pt;font-weight:900}' +
-      '.notes{font-size:10.5pt;font-weight:900}' +
-      '.foot{margin-top:3mm;text-align:center;font-size:9pt;font-weight:900;border-top:2px dashed #555;padding-top:2mm}' +
+      '.notes{font-size:10.5pt;font-weight:900;-webkit-text-stroke:0.4px #000}' +
+      '.foot{margin-top:3mm;text-align:center;font-size:9pt;font-weight:900;border-top:2px dashed #555;padding-top:2mm;-webkit-text-stroke:0.3px #000}' +
       '</style></head><body>' +
       '<div class="hdr"><div class="logo">AVANZA</div><div class="num">#' + o.order_number + '</div></div>' +
       '<div class="div"></div>' +
